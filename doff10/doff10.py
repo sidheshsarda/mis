@@ -1,5 +1,5 @@
 import streamlit as st
-from doff10.query import get_dofftable_data, get_dofftable_sum_by_date, get_dofftable_withname
+from doff10.query import get_dofftable_data, get_dofftable_sum_by_date, get_dofftable_withname, get_doff_details
 
 # Define each page as a function
 def doff10():
@@ -16,8 +16,8 @@ def doff10():
             # Pivot so that spells are rows and q_codes are columns
             pivot = (
             df.pivot_table(
-                index="spell",
-                columns="quality_name",
+                index="quality_name",
+                columns="spell",
                 values="netwt",
                 aggfunc="sum",
                 fill_value=0,
@@ -67,4 +67,5 @@ def doff10():
     if selected_date3:
         abc, json_output = get_dofftable_withname(selected_date3)
         st.dataframe(abc)
-        
+
+    

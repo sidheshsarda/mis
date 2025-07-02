@@ -45,5 +45,20 @@ where d.company_id =2 and d.doffdate = '{selected_date3}' and d.is_active = 1;
         abc = pd.read_sql(query, conn)
     return abc, abc.to_json(orient="records")
 
-
+def get_doff_details(selected_date3):
+    query = f""" select 
+d.spell ,
+d.frameno,  
+CONCAT(d.q_code, "-", wqm.quality_name) as quality , 
+round((sum(d.netwt)),0) as netwt,
+count(*) as num_of_doff,
+round(((sum(d.netwt))/(count(*))),2) as averagewt
+from dofftable d 
+left join weaving_quality_master wqm on wqm.quality_code = d.q_code and d.company_id = wqm.company_id
+where d.company_id =2 and d.doffdate = '{selected_date3}' and d.is_active = 1
+group by  d.spell ,d.frameno, CONCAT(d.q_code, "-",wqm.quality_name) order by spell, cast(frameno as unsigned);
+    """
+    with engine.connect() as conn:
+        abc = pd.read_sql(query, conn)
+    return abc, abc.to_json(orient="records")
 
