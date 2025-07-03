@@ -18,8 +18,6 @@ def daily_summary():
             mtd_df = mtd_df.rename(columns={'value': 'MTD'})
             df = pd.merge(df, mtd_df, on='metric', how='left')
 
-        st.subheader("JSON Data")
-        st.code(json_data, language="json")
 
         # Rename first column to 'Metric' if needed
         if df.columns[0] != 'Metric':
@@ -78,7 +76,7 @@ def daily_summary():
                 column_config[col] = st.column_config.NumberColumn(format="%.1f", width="60px")
 
         # Display final table
-        st.subheader("Dofftable Data")
+        st.subheader("Spg Production Summary")
         st.dataframe(
             df,
             use_container_width=True,
