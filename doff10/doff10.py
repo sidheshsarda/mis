@@ -1,5 +1,5 @@
 import streamlit as st
-from doff10.query import get_dofftable_data, get_dofftable_sum_by_date, get_dofftable_withname, get_doff_details
+from doff10.query import get_dofftable_data, get_dofftable_sum_by_date, get_dofftable_withname
 
 # Define each page as a function
 def doff10():
@@ -69,3 +69,4 @@ def doff10():
         st.dataframe(abc)
 
     
+        
