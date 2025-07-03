@@ -1,11 +1,14 @@
 import streamlit as st
-from overall.query import get_dofftable_data, get_dofftable_sum_by_date
+from overall.query import get_dofftable_data, get_dofftable_sum_by_date, get_spg_fine_coarse
 import pandas as pd
 import datetime 
 
 def daily_summary():
-    st.title("Spinning Summary - Dofftable Data")
+    st.title("Executive Summary")
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    no_of_frames = 48 # Assuming 3 frames as per your original code
+    day_shift = 3
+    mtd_shift = 6
     selected_date = st.date_input("Select Date", value=yesterday, key="daily_summary_date")
 
     end_date = selected_date.replace(day=1) if selected_date else None
@@ -49,11 +52,11 @@ def daily_summary():
 
             utilisation_row = {
                 'Metric': 'Utilisation (%)',
-                'A': round((frame_row['A'] / 48)*100, 0) if frame_row['A'] else None,
-                'B': round((frame_row['B'] / 48)*100, 0) if frame_row['B'] else None,
-                'C': round((frame_row['C'] / 48)*100, 0) if frame_row['C'] else None,
-                'Total': round((frame_row['Total'] / (48*3))*100, 0) if frame_row['Total'] else None,
-                'MTD': round((frame_row['MTD'] / (48*3*num_days))*100, 0) if frame_row['MTD'] else None
+                'A': round((frame_row['A'] / no_of_frames)*100, 0) if frame_row['A'] else None,
+                'B': round((frame_row['B'] / no_of_frames)*100, 0) if frame_row['B'] else None,
+                'C': round((frame_row['C'] / no_of_frames)*100, 0) if frame_row['C'] else None,
+                'Total': round((frame_row['Total'] / (no_of_frames*3))*100, 0) if frame_row['Total'] else None,
+                'MTD': round((frame_row['MTD'] / (no_of_frames*3*num_days))*100, 0) if frame_row['MTD'] else None
             }
 
             df = pd.concat([df, pd.DataFrame([avg_row, utilisation_row])], ignore_index=True)
@@ -85,3 +88,33 @@ def daily_summary():
             column_config=column_config,
             row_height=28  # Compact layout
         )
+        
+        # Display Spinning Fine/Coarse Data
+        st.subheader("Spinning Fine/Coarse Summary")
+        try:
+            spg_df, spg_json = get_spg_fine_coarse(selected_date)
+            if not spg_df.empty:
+                # Transpose the data: set 'side' as index, transpose, then reset index
+                spg_transposed = spg_df.set_index('side').T.reset_index()
+                spg_transposed.rename(columns={'index': 'Metric'}, inplace=True)
+                
+                # Configure column formatting for the transposed table
+                spg_column_config = {}
+                for col in spg_transposed.columns:
+                    if col == 'Metric':
+                        spg_column_config[col] = st.column_config.TextColumn(width="medium")
+                    else:
+                        spg_column_config[col] = st.column_config.NumberColumn(format="%.2f", width="80px")
+                
+                st.dataframe(
+                    spg_transposed,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=spg_column_config,
+                    row_height=28
+                )
+            else:
+                st.info("No spinning fine/coarse data available for the selected date.")
+        except Exception as e:
+            st.error(f"Error fetching spinning fine/coarse data: {str(e)}")
+
