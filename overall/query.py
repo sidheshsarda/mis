@@ -97,3 +97,34 @@ FROM prod_mtd p;
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
     return df, df.to_json(orient="records")
+
+
+def get_spg_fine_coarse(selected_date):
+    query = f"""     select 'Overall' as side, sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as TrgtKgPerFrame ,
+     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as ActualProduction,
+     sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c) as ActualCount,
+     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ) as ProdPerWinder
+     from EMPMILL12.spining_daily_transaction sdt  where tran_date = '2025-07-02' and company_id =2 
+     union all
+     select substr(sdt.q_code,1,1) as side, sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as TrgtKgPerFrame ,
+     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as ActualProduction,
+     sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c) as ActualCount,
+     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ) as ProdPerWinder
+     from EMPMILL12.spining_daily_transaction sdt  where tran_date = '{selected_date}' and company_id =2 
+     group by substr(sdt.q_code,1,1) ;
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+def get_spg_sid_mtd(selected_date, end_date):
+    query = f"""
+     select 'MTD' as side, sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as TrgtKgPerFrame ,
+     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as ActualProduction,
+     sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c) as ActualCount,
+     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ) as ProdPerWinder
+     from EMPMILL12.spining_daily_transaction sdt  where tran_date between '{end_date}' and '{selected_date}' and company_id =2 
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
