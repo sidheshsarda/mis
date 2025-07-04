@@ -7,7 +7,7 @@ WITH base_day AS (
   SELECT
     spell,
     frameno,
-    SUM(netwt) AS total_netwt
+    round(SUM(netwt), 3) AS total_netwt
   FROM dofftable
   WHERE doffdate = '{selected_date}'
     AND company_id = 2
@@ -25,9 +25,9 @@ frame_day AS (
 ),
 prod_day AS (
   SELECT
-    SUM(CASE WHEN spell IN ('A1', 'A2') THEN total_netwt ELSE 0 END) AS A_netwt,
-    SUM(CASE WHEN spell IN ('B1', 'B2') THEN total_netwt ELSE 0 END) AS B_netwt,
-    SUM(CASE WHEN spell = 'C' THEN total_netwt ELSE 0 END) AS C_netwt
+    round(SUM(CASE WHEN spell IN ('A1', 'A2') THEN total_netwt ELSE 0 END),3) AS A_netwt,
+    round(SUM(CASE WHEN spell IN ('B1', 'B2') THEN total_netwt ELSE 0 END),3) AS B_netwt,
+    round(SUM(CASE WHEN spell = 'C' THEN total_netwt ELSE 0 END),3) AS C_netwt
   FROM base_day
 ),
 combined AS (
@@ -37,7 +37,7 @@ combined AS (
   FROM prod_day d, frame_day f
 )
 -- PIVOTED FINAL OUTPUT
-SELECT 'PRODUCTION (MT)' AS metric,
+SELECT 'PRODUCTION (MT)' AS DoffWtProd,
        ROUND(A_netwt_day / 1000, 3) AS A,
        ROUND(B_netwt_day / 1000, 3) AS B,
        ROUND(C_netwt_day / 1000, 3) AS C
@@ -53,12 +53,12 @@ FROM combined;
         df = pd.read_sql(query, conn)
     return df, df.to_json(orient="records")
 
-def get_dofftable_sum_by_date(selected_date, end_date):
+def get_dofftable_sum_by_date(selected_date, start_date):
     query = f"""
 WITH base_mtd AS (
   SELECT DISTINCT spell, frameno, doffdate
   FROM dofftable
-  WHERE doffdate BETWEEN '{selected_date}' AND '{end_date}'
+  WHERE doffdate BETWEEN '{selected_date}' AND '{start_date}'
     AND company_id = 2
     AND is_active = 1
 ),
@@ -79,11 +79,11 @@ total_frames_mtd AS (
 prod_mtd AS (
   SELECT SUM(netwt) AS total_netwt
   FROM dofftable
-  WHERE doffdate BETWEEN '{selected_date}' AND '{end_date}'
+  WHERE doffdate BETWEEN '{selected_date}' AND '{start_date}'
     AND company_id = 2
     AND is_active = 1
 )
-SELECT 'NO OF FRAME RUNS' AS metric,
+SELECT 'NO OF FRAME RUNS' AS DoffWtProd,
        ROUND(f.total_frames, 3) AS value
 FROM total_frames_mtd f
 
@@ -100,30 +100,97 @@ FROM prod_mtd p;
 
 
 def get_spg_fine_coarse(selected_date):
-    query = f"""     select 'Overall' as side, sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as TrgtKgPerFrame ,
-     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as ActualProduction,
-     sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c) as ActualCount,
-     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ) as ProdPerWinder
-     from EMPMILL12.spining_daily_transaction sdt  where tran_date = '2025-07-02' and company_id =2 
+    query = f"""          select 'Overall' as side, 
+     round(sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c),2) as ActualCount,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c),0) as KgPerFrame,
+     round(sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c),0) as TrgtKgPerFrame ,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ),0) as ProdPerWinder
+     from EMPMILL12.spining_daily_transaction sdt  where sdt.tran_date = '{selected_date}' and company_id =2 
      union all
-     select substr(sdt.q_code,1,1) as side, sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as TrgtKgPerFrame ,
-     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as ActualProduction,
-     sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c) as ActualCount,
-     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ) as ProdPerWinder
-     from EMPMILL12.spining_daily_transaction sdt  where tran_date = '{selected_date}' and company_id =2 
+     select substr(sdt.q_code,1,1) as side, 
+     round(sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c),2) as ActualCount,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c),0) as KgPerFrame,
+     round(sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c),0) as TrgtKgPerFrame ,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ),0) as ProdPerWinder
+     from EMPMILL12.spining_daily_transaction sdt  where sdt.tran_date = '{selected_date}' and company_id =2 
      group by substr(sdt.q_code,1,1) ;
     """
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
     return df, df.to_json(orient="records")
 
-def get_spg_sid_mtd(selected_date, end_date):
+def get_spg_sid_mtd(selected_date, start_date):
     query = f"""
-     select 'MTD' as side, sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as TrgtKgPerFrame ,
-     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c) as ActualProduction,
-     sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c) as ActualCount,
-     sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ) as ProdPerWinder
-     from EMPMILL12.spining_daily_transaction sdt  where tran_date between '{end_date}' and '{selected_date}' and company_id =2 
+          select 'MTD' as side, 
+     round(sum((sdt.prd_a+sdt.prd_b+sdt.prd_c)*sdt.act_count)/sum(sdt.prd_a+sdt.prd_b+sdt.prd_c),2) as ActualCount,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c),0) as KgPerFrame,
+     round(sum(sdt.hunprod)/sum(sdt.mc_a+sdt.mc_b+sdt.mc_c),0) as TrgtKgPerFrame ,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ),0) as ProdPerWinder
+     from EMPMILL12.spining_daily_transaction sdt  where sdt.tran_date between '{start_date}' and '{selected_date}' and company_id =2
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+
+def get_quality_winding_details(selected_date, start_date):
+    query = f"""
+     select tdtprod.TDQuality  as Quality, IFNULL(tdyprod.act_count,0) as ActCount, 
+     tdyprod.ProdPerWinder as ProdPerWinder,
+     tdyprod.WdgProd as WdgProd, 
+     tdyprod.STDPROD as StdProd , 
+     tdyprod.diff as Difference,
+     tdtprod.diff as MTD_Difference
+     from (
+     select sdt.q_code ,concat(sm.std_count ,' - ', sm.subgroup_type) as TDQuality , 
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ),0) as ProdPerWinder ,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c),0) as WdgProd, 
+     round(sum((sdt.hunprod)/(sdt.winder)),0) as STDPROD ,
+     round((sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder))-(sum(sdt.hunprod)/sum(sdt.winder)),0) as diff
+     from EMPMILL12.spining_daily_transaction sdt  
+     left join EMPMILL12.spining_master sm  on sm.q_code  = sdt.q_code
+     where sdt.tran_date between '{start_date}' and '{selected_date}' group by sdt.q_code ,concat(sm.std_count ,' - ', sm.subgroup_type)) 
+     tdtprod left join (     
+     select sdt.q_code  , 
+     sdt.act_count , 
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder ),0) as ProdPerWinder ,
+     round(sum(sdt.prd_a+sdt.prd_b+sdt.prd_c),0) as WdgProd, 
+     round(sum(sdt.hunprod/sdt.winder),0) as STDPROD ,
+    round((sum(sdt.prd_a+sdt.prd_b+sdt.prd_c)/sum(sdt.winder))-(sum(sdt.hunprod)/sum(sdt.winder)),0) as diff
+     from EMPMILL12.spining_daily_transaction sdt  
+     left join EMPMILL12.spining_master sm  on sm.q_code  = sdt.q_code
+     where sdt.tran_date = '{selected_date}' group by sdt.q_code  , sdt.act_count) tdyprod 
+     on tdtprod.q_code = tdyprod.q_code ;
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+
+def weaving_details(selected_date):
+    query = f"""
+     select 
+     case when QualityType = '1' then 'Hessian'
+     when QualityType = '2' then 'Sacking' else 'PackSheet' end 
+     as Quality,
+     sum(actkgs) as Production, 
+     sum(mc_a + mc_b + mc_c ) as McRun,  
+     round(sum(actkgs)/sum(mc_a + mc_b + mc_c ),2) as KgPerLoom,
+     round((sum(actyds)/sum(actyds_ashots))*100,2) as Eff, 
+     case when QualityType ='1' then 200
+     when QualityType ='2' then 114 else 4 end as TotalLooms from (
+     select 
+     substr(wm.q_code,1,1) as QualityType,
+     wdt.mc_a, 
+     wdt.mc_b, 
+     wdt.mc_c, 
+     wdt.actkgs, 
+     actyds , 
+     actyds_ashots 
+     from EMPMILL12.weaving_daily_transaction wdt 
+     left join 
+     EMPMILL12.weaving_master wm on wm.q_code = wdt.q_code
+     where wdt.company_id=2 and wdt.tran_date = '{selected_date}') a group by a.QualityType  ;
     """
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
