@@ -278,7 +278,7 @@ SELECT shift,
          WHEN shift = 'A' THEN ROUND(whrs / 8, 2)
          WHEN shift = 'B' THEN ROUND(whrs / 8, 2)
          ELSE ROUND(whrs / 7.5, 2)
-       END AS handsMTD
+       END AS hands
 FROM (
     SELECT 
         SUBSTR(spell, 1, 1) AS shift,
@@ -290,7 +290,7 @@ FROM (
     ) theod ON da.eb_id = theod.eb_id
     WHERE da.company_id = 2 
       AND da.is_active = 1 
-      AND da.attendance_date between '{start_date}' and  '{selected_date}'
+      AND da.attendance_date BETWEEN '{start_date}' AND '{selected_date}'
       AND theod.catagory_id NOT IN (30)
     GROUP BY SUBSTR(spell, 1, 1)
 ) AS g;
