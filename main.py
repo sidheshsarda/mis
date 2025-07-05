@@ -1,26 +1,31 @@
 import streamlit as st
-from doff10.doff10 import doff10
-from wvg.wvg import weaving_page
-from doff10.doff10new import doff_details
-from overall.dailySummary import daily_summary
 
+st.title("MIS Dashboard")
 
+st.markdown("""
+<style>
+.icon-btn {
+    display: inline-block;
+    margin: 0 20px 20px 0;
+    text-align: center;
+    font-size: 2.2em;
+    text-decoration: none;
+    color: inherit;
+}
+.icon-btn span {
+    display: block;
+    font-size: 0.7em;
+    margin-top: 0.2em;
+}
+</style>
+""", unsafe_allow_html=True)
 
-def about_page():
-    st.title("About")
-    st.write("This is a multipage Streamlit app for viewing Dofftable data.")
+st.markdown("""
+<a class="icon-btn" href="/Doff10" target="_self">🧵<span>Doff10</span></a>
+<a class="icon-btn" href="/Weaving" target="_self">🪡<span>Weaving</span></a>
+<a class="icon-btn" href="/Doff_Details" target="_self">📋<span>Doff Details</span></a>
+<a class="icon-btn" href="/Daily_Summary" target="_self">📊<span>Daily Summary</span></a>
+<a class="icon-btn" href="/About" target="_self">ℹ️<span>About</span></a>
+""", unsafe_allow_html=True)
 
-
-
-
-# Sidebar navigation
-st.sidebar.title("Navigation")
-pages = {
-    "Doff10": doff10,
-    "About": about_page,
-    "Weaving": weaving_page,
-    "Doff Details": doff_details,
-    "Daily Summary": daily_summary,
-    }
-selection = st.sidebar.radio("Go to", list(pages.keys()))
-pages[selection]()
+st.info("Use the sidebar or the icon buttons above to navigate between pages.")

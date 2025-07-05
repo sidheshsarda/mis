@@ -80,7 +80,7 @@ def daily_summary():
                 column_config[col] = st.column_config.NumberColumn(format="%.1f", width="60px")
 
         # Display final table
-        st.subheader("Spg Production Summary")
+        st.markdown("Spg Production Summary")
         st.dataframe(
             df,
             use_container_width=True,
@@ -91,7 +91,7 @@ def daily_summary():
         )
         
         # Display Spinning Fine/Coarse Data
-        st.subheader("Spinning Fine/Coarse Summary")
+        st.markdown("Spinning Fine/Coarse Summary")
         try:
             spg_df, spg_json = get_spg_fine_coarse(selected_date)
             
@@ -139,7 +139,7 @@ def daily_summary():
             st.error(f"Error fetching spinning fine/coarse data: {str(e)}")
         
         # Display Quality Winding Details
-        st.subheader("Quality Winding Details")
+        st.markdown("Quality Winding Details")
         try:
             if start_date:
                 winding_df, winding_json = get_quality_winding_details(selected_date, start_date)
@@ -185,7 +185,7 @@ def daily_summary():
             st.error(f"Error fetching quality winding details: {str(e)}")
         
         # Display Weaving Details
-        st.subheader("Weaving Details")
+        st.markdown("Weaving Details")
         try:
             weaving_df, weaving_json = weaving_details(selected_date)
             if not weaving_df.empty:
@@ -243,7 +243,7 @@ def daily_summary():
             st.error(f"Error fetching weaving details: {str(e)}")
         
         # Display Weaving Shiftwise Details
-        st.subheader("Weaving Shiftwise Details")
+        st.markdown("Weaving Shiftwise Details")
         try:
             weaving_shiftwise_df, weaving_shiftwise_json = get_weaving_shiftwise(selected_date)
             mtd_total_df, mtd_total_json = get_weaving_total_mtd(selected_date, start_date) if start_date else (pd.DataFrame(), None)
@@ -282,7 +282,7 @@ def daily_summary():
             st.error(f"Error fetching weaving shiftwise details: {str(e)}")
         
         # Display Hands Details (Daily + MTD)
-        st.subheader("Hands Details (Daily + MTD)")
+        st.markdown("Hands Details (Daily + MTD)")
         try:
             hands_df, hands_json = get_hands_details(selected_date)
             hands_mtd_df, hands_mtd_json = get_hands_mtd_details(selected_date, start_date) if start_date else (pd.DataFrame(), None)
