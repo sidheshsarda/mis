@@ -280,11 +280,51 @@ def daily_summary():
                 st.info("No weaving shiftwise details available for the selected date.")
         except Exception as e:
             st.error(f"Error fetching weaving shiftwise details: {str(e)}")
+        
+        # Display Hands Details (Daily + MTD)
+        st.subheader("Hands Details (Daily + MTD)")
+        try:
+            hands_df, hands_json = get_hands_details(selected_date)
+            hands_mtd_df, hands_mtd_json = get_hands_mtd_details(selected_date, start_date) if start_date else (pd.DataFrame(), None)
+            hands_total = None
+            if not hands_df.empty:
+                # Transpose daily hands data
+                hands_transposed = hands_df.set_index(hands_df.columns[0]).T.reset_index()
+                hands_transposed.rename(columns={'index': 'Metric'}, inplace=True)
+                # Add Total column (sum across all shifts for each metric)
+                shift_cols = [col for col in hands_transposed.columns if col != 'Metric']
+                hands_transposed['Total'] = hands_transposed[shift_cols].apply(pd.to_numeric, errors='coerce').sum(axis=1)
+                # Prepare MTD total (not shift-wise)
+                mtd_total = None
+                if hands_mtd_df is not None and not hands_mtd_df.empty:
+                    mtd_total = hands_mtd_df['hands'].sum()
+                # Add MTD column: only fill for 'Total' row
+                hands_transposed['MTD'] = ''
+                if mtd_total is not None:
+                    # Only fill MTD for the 'Total' row (i.e., the last row)
+                    hands_transposed.at[hands_transposed.index[-1], 'MTD'] = mtd_total
+                # Save hands total (last row, 'Total' column)
+                hands_total = hands_transposed['Total'].iloc[-1]
+                # Configure column formatting
+                hands_column_config = {}
+                for col in hands_transposed.columns:
+                    if col == 'Metric' or hands_transposed[col].dtype == 'object':
+                        hands_column_config[col] = st.column_config.TextColumn(width="small")
+                    else:
+                        hands_column_config[col] = st.column_config.NumberColumn(format="%.1f", width="small")
+                # Set column order: Metric, shifts..., Total, MTD
+                col_order = ['Metric'] + [col for col in shift_cols] + ['Total', 'MTD']
+                st.dataframe(
+                    hands_transposed[col_order],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=hands_column_config,
+                    row_height=28
+                )
+            else:
+                st.info("No hands details available for the selected date.")
+        except Exception as e:
+            st.error(f"Error fetching hands details: {str(e)}")
 
-
-
-
-
-
-
-
+  
+        
