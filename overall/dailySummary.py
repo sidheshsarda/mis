@@ -1,7 +1,8 @@
 import streamlit as st
-from overall.query import get_dofftable_data, get_dofftable_sum_by_date, get_spg_fine_coarse, get_spg_sid_mtd, get_quality_winding_details, weaving_details
+from overall.query import get_dofftable_data, get_dofftable_sum_by_date, get_spg_fine_coarse, get_spg_sid_mtd, get_quality_winding_details, weaving_details, get_weaving_shiftwise, get_weaving_total_mtd, get_hands_details, get_hands_mtd_details
 import pandas as pd
 import datetime 
+import numpy as np
 
 def daily_summary():
     st.title("Executive Summary")
@@ -156,7 +157,7 @@ def daily_summary():
                             elif 'Quality' in col or col == 'TDQuality':
                                 total_row[col] = 'TOTAL'
                             else:
-                                total_row[col] = None
+                                total_row[col] = np.nan
                         
                         # Add total row to dataframe
                         winding_df = pd.concat([winding_df, pd.DataFrame([total_row])], ignore_index=True)
@@ -182,8 +183,108 @@ def daily_summary():
                 st.info("Start date not available for quality winding details.")
         except Exception as e:
             st.error(f"Error fetching quality winding details: {str(e)}")
+        
+        # Display Weaving Details
+        st.subheader("Weaving Details")
+        try:
+            weaving_df, weaving_json = weaving_details(selected_date)
+            if not weaving_df.empty:
+                # Transpose the data, assuming the first column is the metric names
+                weaving_transposed = weaving_df.set_index(weaving_df.columns[0]).T.reset_index()
+                weaving_transposed.rename(columns={'index': 'Metric'}, inplace=True)
 
-            
+                # Add Utilisation row: Utilisation = McRun / TotalLooms * 100 (as a row after transpose)
+                if 'Metric' in weaving_transposed.columns:
+                    utilisation_row = {'Metric': 'Utilisation (%)'}
+                    for col in weaving_transposed.columns:
+                        if col == 'Metric':
+                            continue
+                        try:
+                            mc_run = pd.to_numeric(weaving_transposed.loc[weaving_transposed['Metric'] == 'McRun', col], errors='coerce').values[0]
+                            total_looms = pd.to_numeric(weaving_transposed.loc[weaving_transposed['Metric'] == 'TotalLooms', col], errors='coerce').values[0]
+                            if pd.notna(mc_run) and pd.notna(total_looms) and total_looms != 0:
+                                utilisation_row[col] = round((mc_run / (3*total_looms)) * 100, 1)
+                            else:
+                                utilisation_row[col] = np.nan
+                        except Exception:
+                            utilisation_row[col] = np.nan
+                    weaving_transposed = pd.concat([weaving_transposed, pd.DataFrame([utilisation_row])], ignore_index=True)
+
+                # Add 'Total' column for Production and McRun rows only
+                if 'Metric' in weaving_transposed.columns:
+                    total_col = []
+                    for idx, row in weaving_transposed.iterrows():
+                        if row['Metric'] in ['Production', 'McRun']:
+                            # Sum all numeric columns except 'Metric' and 'Total'
+                            vals = pd.to_numeric(row.drop(['Metric']), errors='coerce')
+                            total_col.append(vals.sum(skipna=True))
+                        else:
+                            total_col.append("")
+                    weaving_transposed['Total'] = total_col
+
+                # Configure column formatting for the weaving table
+                weaving_column_config = {}
+                for col in weaving_transposed.columns:
+                    if col == 'Metric' or weaving_transposed[col].dtype == 'object':
+                        weaving_column_config[col] = st.column_config.TextColumn(width="small")
+                    else:
+                        weaving_column_config[col] = st.column_config.NumberColumn(format="%.1f", width="small")
+                
+                st.dataframe(
+                    weaving_transposed,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=weaving_column_config,
+                    row_height=28
+                )
+            else:
+                st.info("No weaving details available for the selected date.")
+        except Exception as e:
+            st.error(f"Error fetching weaving details: {str(e)}")
+        
+        # Display Weaving Shiftwise Details
+        st.subheader("Weaving Shiftwise Details")
+        try:
+            weaving_shiftwise_df, weaving_shiftwise_json = get_weaving_shiftwise(selected_date)
+            mtd_total_df, mtd_total_json = get_weaving_total_mtd(selected_date, start_date) if start_date else (pd.DataFrame(), None)
+            if not weaving_shiftwise_df.empty:
+                # Merge MTD Total column if available
+                if not mtd_total_df.empty and 'Quality' in mtd_total_df.columns and 'Total' in mtd_total_df.columns:
+                    weaving_shiftwise_df = weaving_shiftwise_df.merge(
+                        mtd_total_df[['Quality', 'Total']].rename(columns={'Total': 'MTD Total'}),
+                        on='Quality', how='left')
+                # Add Grand Total row
+                numeric_cols = [col for col in weaving_shiftwise_df.columns if weaving_shiftwise_df[col].dtype != 'object' and col != 'Quality']
+                grand_total = {'Quality': 'Total Weaving Production'}
+                for col in weaving_shiftwise_df.columns:
+                    if col in numeric_cols:
+                        grand_total[col] = weaving_shiftwise_df[col].sum(skipna=True)
+                    else:
+                        grand_total[col] = ''
+                weaving_shiftwise_df = pd.concat([weaving_shiftwise_df, pd.DataFrame([grand_total])], ignore_index=True)
+                # Configure column formatting for the shiftwise table
+                shiftwise_column_config = {}
+                for col in weaving_shiftwise_df.columns:
+                    if col == 'Quality' or weaving_shiftwise_df[col].dtype == 'object':
+                        shiftwise_column_config[col] = st.column_config.TextColumn(width="small")
+                    else:
+                        shiftwise_column_config[col] = st.column_config.NumberColumn(format="%.1f", width="small")
+                st.dataframe(
+                    weaving_shiftwise_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=shiftwise_column_config,
+                    row_height=28
+                )
+            else:
+                st.info("No weaving shiftwise details available for the selected date.")
+        except Exception as e:
+            st.error(f"Error fetching weaving shiftwise details: {str(e)}")
+
+
+
+
+
 
 
 

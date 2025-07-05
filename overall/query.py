@@ -195,3 +195,106 @@ def weaving_details(selected_date):
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
     return df, df.to_json(orient="records")
+
+def get_weaving_shiftwise(selected_date):
+    query = f"""
+     select 
+     case when QualityType = '1' then 'Hessian'
+     when QualityType = '2' then 'Sacking' 
+     else 'PackSheet' end 
+     as Quality, 
+     sum(A_prod) as A, 
+     sum(B_prod) as B,
+     sum(C_prod) as C, 
+     round(sum(Total)/1000,3) as Total from (
+     select 
+     substr(wm.q_code,1,1) as QualityType,
+     round(((wdt.yds_a * 28.35* (wm.q_ozs_yds/1000)))/1000,3) as A_prod,
+     round(((wdt.yds_b * 28.35* (wm.q_ozs_yds/1000)))/1000,3) as B_prod,
+     round(((wdt.yds_c * 28.35* (wm.q_ozs_yds/1000)))/1000,3) as C_prod,
+     wdt.actkgs as Total 
+     from EMPMILL12.weaving_daily_transaction wdt 
+     left join 
+     EMPMILL12.weaving_master wm on wm.q_code = wdt.q_code
+     where wdt.company_id=2 and wdt.tran_date = '{selected_date}') a group by a.QualityType 
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+def get_weaving_total_mtd(selected_date, start_date):
+    query = f"""
+     select 
+     case when QualityType = '1' then 'Hessian'
+     when QualityType = '2' then 'Sacking' 
+     else 'PackSheet' end 
+     as Quality, 
+     round(sum(Total)/1000,3) as Total from (
+     select 
+     substr(wm.q_code,1,1) as QualityType,
+     wdt.actkgs as Total 
+     from EMPMILL12.weaving_daily_transaction wdt 
+     left join 
+     EMPMILL12.weaving_master wm on wm.q_code = wdt.q_code
+     where wdt.company_id=2 and wdt.tran_date between '{start_date}' and '{selected_date}') a group by a.QualityType 
+     ;
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+def get_hands_details(selected_date):
+    query = f"""
+SELECT shift,
+       CASE 
+         WHEN shift = 'A' THEN ROUND(whrs / 8, 2)
+         WHEN shift = 'B' THEN ROUND(whrs / 8, 2)
+         ELSE ROUND(whrs / 7.5, 2)
+       END AS hands
+FROM (
+    SELECT 
+        SUBSTR(spell, 1, 1) AS shift,
+        SUM(working_hours - idle_hours) AS whrs
+    FROM daily_attendance da
+    LEFT JOIN (
+        SELECT * FROM tbl_hrms_ed_official_details 
+        WHERE is_active = 1
+    ) theod ON da.eb_id = theod.eb_id
+    WHERE da.company_id = 2 
+      AND da.is_active = 1 
+      AND da.attendance_date = '{selected_date}'
+      AND theod.catagory_id NOT IN (30)
+    GROUP BY SUBSTR(spell, 1, 1)
+) AS g;
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+def get_hands_mtd_details(selected_date, start_date):
+    query = f"""
+SELECT shift,
+       CASE 
+         WHEN shift = 'A' THEN ROUND(whrs / 8, 2)
+         WHEN shift = 'B' THEN ROUND(whrs / 8, 2)
+         ELSE ROUND(whrs / 7.5, 2)
+       END AS handsMTD
+FROM (
+    SELECT 
+        SUBSTR(spell, 1, 1) AS shift,
+        SUM(working_hours - idle_hours) AS whrs
+    FROM daily_attendance da
+    LEFT JOIN (
+        SELECT * FROM tbl_hrms_ed_official_details 
+        WHERE is_active = 1
+    ) theod ON da.eb_id = theod.eb_id
+    WHERE da.company_id = 2 
+      AND da.is_active = 1 
+      AND da.attendance_date between '{start_date}' and  '{selected_date}'
+      AND theod.catagory_id NOT IN (30)
+    GROUP BY SUBSTR(spell, 1, 1)
+) AS g;
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
