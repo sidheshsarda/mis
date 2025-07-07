@@ -25,7 +25,6 @@ st.markdown("""
 <a class="icon-btn" href="/Weaving" target="_self">🪡<span>Weaving</span></a>
 <a class="icon-btn" href="/Doff_Details" target="_self">📋<span>Doff Details</span></a>
 <a class="icon-btn" href="/Daily_Summary" target="_self">📊<span>Daily Summary</span></a>
-<a class="icon-btn" href="/About" target="_self">ℹ️<span>About</span></a>
 """, unsafe_allow_html=True)
 
 st.info("Use the sidebar or the icon buttons above to navigate between pages.")
