@@ -9,7 +9,7 @@ def get_dofftable_data(selected_date):
         where d.doffdate = '{selected_date}'
           and d.company_id = 2
           and d.is_active = 1
-        order by doffdate desc
+        order by doffdate, auto_id desc
     """
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)

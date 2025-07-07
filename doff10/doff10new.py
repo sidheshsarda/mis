@@ -1,9 +1,6 @@
-
-
-
 import streamlit as st
 import plotly.express as px
-from doff10.query import get_doff_details
+from doff10.query import get_doff_details, get_dofftable_data
 
 def doff_details():
     st.subheader("Doff Details Summary")
@@ -151,6 +148,22 @@ def doff_details():
                             count = int(category_spells.loc[spell_idx, 'frame_count'])
                             st.write(f"   **Spell {spell}**: {count} frames - {frames}")
                     st.write("---")  # Add separator between categories
-
     
-        
+    # --- Show raw dofftable data with frame filter at the end ---
+    st.markdown("---")
+    st.subheader("Raw Doff Table Data (Frame-wise)")
+    dofftable_df, _ = get_dofftable_data(selected_date4)
+    if not dofftable_df.empty and 'frameno' in dofftable_df.columns:
+        frame_list2 = sorted(dofftable_df['frameno'].unique().tolist())
+        selected_frameno2 = st.selectbox("Select Frame No (Raw Table)", ["All Frames"] + [str(f) for f in frame_list2], key="frameno_filter_raw")
+        if selected_frameno2 != "All Frames":
+            filtered_dofftable_df = dofftable_df[dofftable_df['frameno'].astype(str) == selected_frameno2]
+        else:
+            filtered_dofftable_df = dofftable_df
+        st.dataframe(filtered_dofftable_df)
+    else:
+        st.info("No dofftable data available for the selected date.")
+
+
+
+
