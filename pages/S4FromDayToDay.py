@@ -1,0 +1,3 @@
+from WvgS4.s4fromdaytoday import s4_from_day_to_day_view
+
+s4_from_day_to_day_view()
