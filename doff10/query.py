@@ -62,3 +62,34 @@ group by  d.spell ,d.frameno, CONCAT(d.q_code, "-",wqm.quality_name) order by sp
         abc = pd.read_sql(query, conn)
     return abc, abc.to_json(orient="records")
 
+def get_dofftable_details(start_date, end_date):
+    query = f"""
+        SELECT 
+            doffdate, 
+            substr(spell,1,1) as shift,
+            frameno ,
+            q_code ,
+            ebno ,
+            ROUND(SUM(netwt), 0) as total_netwt 
+        FROM 
+            dofftable d 
+        WHERE 
+            doffdate BETWEEN '{start_date}' AND '{end_date}' 
+            AND company_id = 2 
+            AND is_active = 1 
+        GROUP BY 
+                        doffdate, 
+            substr(spell,1,1),
+            frameno ,
+            q_code ,
+            ebno
+        ORDER BY 
+            doffdate, 
+            substr(spell,1,1),
+            frameno ,
+            q_code DESC;
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+

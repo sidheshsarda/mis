@@ -22,7 +22,6 @@ st.markdown("""
 
 st.markdown("""
 <a class="icon-btn" href="/Doff10" target="_self">🧵<span>Doff10</span></a>
-<a class="icon-btn" href="/Weaving" target="_self">🪡<span>Weaving</span></a>
 <a class="icon-btn" href="/Doff_Details" target="_self">📋<span>Doff Details</span></a>
 <a class="icon-btn" href="/Daily_Summary" target="_self">📊<span>Daily Summary</span></a>
 """, unsafe_allow_html=True)
