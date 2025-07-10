@@ -17,10 +17,10 @@ def s4_eff_todatewise_view():
                 df = df[df['EBNO'].astype(str) == selected_ebno]
             st.dataframe(df)
             # --- Pivot Table: EBNO, Name, Shift as index; days as columns; avg EFF as values ---
-            if 'tran_date' in df.columns and 'EBNO' in df.columns and 'Name' in df.columns and 'Shift' in df.columns and 'EFF' in df.columns:
-                # Convert tran_date to datetime and extract day
-                df['tran_date'] = pd.to_datetime(df['tran_date'])
-                df['day'] = df['tran_date'].dt.day
+            if 'Date' in df.columns and 'EBNO' in df.columns and 'Name' in df.columns and 'Shift' in df.columns and 'EFF' in df.columns:
+                # Convert Date to datetime and extract day
+                df['Date'] = pd.to_datetime(df['Date'])
+                df['day'] = df['Date'].dt.day
                 # Use day as columns
                 pivot = pd.pivot_table(
                     df,
