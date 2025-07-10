@@ -26,13 +26,19 @@ def s4_low_producer_view():
 
     st.title("S4 Low Producer Report")
 
+    # --- Date selection controls ---
     today = datetime.date.today()
-    start_date = today - datetime.timedelta(days=30)
-    st.write(f"**Selected End Date:** {today}")
+    default_start = today - datetime.timedelta(days=30)
+    col_date1, col_date2 = st.columns(2)
+    with col_date1:
+        start_date = st.date_input("From Date", value=default_start, max_value=today, key="lp_from_date")
+    with col_date2:
+        end_date = st.date_input("To Date", value=today, min_value=start_date, max_value=today, key="lp_to_date")
+    st.write(f"**Selected End Date:** {end_date}")
     st.write(f"**Selected Start Date:** {start_date}")
-    st.info("This report is considering last 30 days data")
+    st.info("This report is considering data from the selected date range")
 
-    df, _ = S4_day_details_eff(today, start_date)
+    df, _ = S4_day_details_eff(end_date, start_date)
     if not df.empty:
         # Add LoomGroup column before LOOM_NO
         if 'LOOM_NO' in df.columns:
