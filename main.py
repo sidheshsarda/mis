@@ -21,7 +21,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<a class="icon-btn" href="/Doff10" target="_self">🧵<span>Doff10</span></a>
 <a class="icon-btn" href="/Doff_Details" target="_self">📋<span>Doff Details</span></a>
 <a class="icon-btn" href="/Daily_Summary" target="_self">📊<span>Daily Summary</span></a>
 """, unsafe_allow_html=True)
@@ -35,7 +34,7 @@ main_menu = st.sidebar.selectbox("Main Menu", ["General", "S4 Reports"])
 # --- Expandable menu for Weaving S4 ---
 with st.expander("Weaving S4"):
     st.markdown("""
-    <a class="icon-btn" href="/pages/S4FromDayToDay" target="_self">📅<span>S4 From Day to Day</span></a>
-    <a class="icon-btn" href="/pages/S4LowProducer" target="_self">🟢<span>S4 Low Producer</span></a>
+    <a class="icon-btn" href="/S4FromDayToDay" target="_self">📅<span>S4 From Day to Day</span></a>
+    <a class="icon-btn" href="/S4LowProducer" target="_self">🟢<span>S4 Low Producer</span></a>
     """, unsafe_allow_html=True)
 

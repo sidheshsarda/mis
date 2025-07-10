@@ -114,7 +114,8 @@ def s4_low_producer_view():
                 row['Name'] = name_val[0] if len(name_val) > 0 else ''
                 row['DaysAttended'] = group['Date'].nunique()
                 # Calculate Avg LoomsRun: count of looms run where Eff > 0 divided by DaysAttended
-                looms_run = group[group['EFF'] > 0]['LOOM_NO'].nunique() if 'LOOM_NO' in group.columns else group[group['EFF'] > 0].shape[0]
+                # Count every loom row for this EBNO (duplicates included, no EFF filter)
+                looms_run = group['LOOM_NO'].count() if 'LOOM_NO' in group.columns else len(group)
                 row['Avg LoomsRun'] = round(looms_run / row['DaysAttended'], 0) if row['DaysAttended'] > 0 else ''
                 for shift in ['A', 'B', 'C']:
                     effs = group[(group['Shift'] == shift) & (group['EFF'] > 0) & (~group['EFF'].isnull())]['EFF']
