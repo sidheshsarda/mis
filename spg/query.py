@@ -1,9 +1,9 @@
 import pandas as pd
 from db import engine
 
-def spg_details_date(selected_date):
+def spg_details_date(selected_date, start_date):
 	query = f"""
-select doffdate,substr(spell,1,1) shift,attendance_type,ebno,frameno,q_code,quality,
+	select doffdate,substr(spell,1,1) shift,attendance_type,ebno,frameno,q_code,quality,
 	sum(netwt) netwt,sum(whrs) whrs,sum(stdprod) stdprod,
 	sum(noofframe) noofframe,round(sum(netwt)/sum(stdprod)*100,2)  eff from  
 	(
@@ -13,7 +13,7 @@ select doffdate,substr(spell,1,1) shift,attendance_type,ebno,frameno,q_code,qual
 	from ( 
 	select dft.company_id,doffdate,dft.spell,ebno,frameno,q_code,mechine_id,round(sum(netwt),2) netwt from dofftable dft
 	left join mechine_master mm on mm.company_id =dft.company_id and mm.mach_shr_code =dft.frameno
-	where doffdate='{selected_date}' and dft.company_id=2 and mm.type_of_mechine=36 
+	where doffdate between '{start_date}'and '{selected_date}' and dft.company_id=2 and mm.type_of_mechine=36 
 	group by dft.company_id,doffdate,dft.spell,ebno,frameno,q_code,mechine_id  
 	) prd 
 	left join daily_ebmc_attendance dea on dea.company_id =prd.company_id and prd.spell=dea.spell 
