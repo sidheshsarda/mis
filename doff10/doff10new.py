@@ -1,12 +1,12 @@
 import streamlit as st
 import plotly.express as px
-from doff10.query import get_doff_details, get_dofftable_data
+from doff10.query import get_doff_details, get_dofftable_data, get_dofftable_details_lastdoff
 
 def doff_details():
     st.subheader("Doff Details Summary")
     selected_date4 = st.date_input("Select Doff Date for Details", key="selected_date4")
     if selected_date4:
-        details_df, details_json = get_doff_details(selected_date4)
+        details_df, details_json = get_dofftable_details_lastdoff(selected_date4)
         # st.subheader("JSON Output")
         # st.code(details_json, language="json")
         
@@ -36,12 +36,12 @@ def doff_details():
                 # If no data for selected spell, show empty dataframe and disable quality filter
                 st.warning(f"No data found for Spell {selected_spell}")
                 filtered_df = spell_filtered_df
-                st.selectbox("Select Quality", ["No qualities available"], key="quality_filter", disabled=True)
+                st.selectbox("Select Quality", ["No qualities available"], key="quality_filter", disabled=True, index=0)
         else:
             filtered_df = details_df
         
         st.subheader("Doff Details Table")
-        st.dataframe(filtered_df)
+        st.dataframe(filtered_df, hide_index=True)
         
         # Add summary statistics
         if not filtered_df.empty:
