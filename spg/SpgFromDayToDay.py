@@ -10,12 +10,14 @@ def spg_from_day_to_day_view():
     
     # Date range input for selecting from and to dates
     today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    seven_days_ago = today - datetime.timedelta(days=7)
     default_start = today - datetime.timedelta(days=30)
     col_date1, col_date2 = st.columns(2)
     with col_date1:
-        from_date = st.date_input("From Date", value=default_start, max_value=today, key="spg_from_date")
+        from_date = st.date_input("From Date", value=seven_days_ago, max_value=yesterday, key="spg_from_date")
     with col_date2:
-        to_date = st.date_input("To Date", value=today, min_value=from_date, max_value=today, key="spg_to_date")
+        to_date = st.date_input("To Date", value=yesterday, min_value=from_date, max_value=yesterday, key="spg_to_date")
     if from_date and to_date:
         from_date_str = from_date.strftime("%Y-%m-%d")
         to_date_str = to_date.strftime("%Y-%m-%d")
@@ -83,6 +85,12 @@ def spg_from_day_to_day_view():
             ebno_table_columns = ['ebno', 'shift', 'eff', 'doffdate']
             missing_cols = [col for col in ebno_table_columns if col not in filtered_df.columns]
             if not filtered_df.empty and not missing_cols:
+                st.markdown('**EBNO/Shiftwise Avg Eff Table Filters**')
+                colf1, colf2 = st.columns(2)
+                with colf1:
+                    days_filter_type = st.selectbox('DaysAttended: Above/Below', ['All', 'Above', 'Below'], key='spg_days_filter_type')
+                with colf2:
+                    days_filter_value = st.number_input('DaysAttended Value', min_value=0, value=0, key='spg_days_filter_value')
                 st.markdown('**EBNO/Shiftwise Avg Eff Table**')
                 group_rows = []
                 for ebno, group in filtered_df.groupby(['ebno']):
@@ -95,6 +103,12 @@ def spg_from_day_to_day_view():
                     row['Avg Eff'] = round(effs_all.mean(), 2) if not effs_all.empty else ''
                     group_rows.append(row)
                 group_df = pd.DataFrame(group_rows)
+                # Apply DaysAttended filter
+                if days_filter_type != 'All':
+                    if days_filter_type == 'Above':
+                        group_df = group_df[group_df['DaysAttended'] > days_filter_value]
+                    elif days_filter_type == 'Below':
+                        group_df = group_df[group_df['DaysAttended'] < days_filter_value]
                 # Sort by Avg Eff (lowest to highest, blanks at the bottom)
                 def avg_eff_sort_key(val):
                     try:
@@ -106,53 +120,55 @@ def spg_from_day_to_day_view():
             elif not filtered_df.empty and missing_cols:
                 st.warning(f"Cannot display EBNO/Shiftwise Avg Eff Table. Missing columns: {', '.join(missing_cols)}")
 
-            # --- New Table: Date, Shift, EBNO, Eff, EffA, EffB, EffC, AvgEff (filtered by selected EBNO) ---
-            if 'ebno' in filtered_df.columns:
-                ebno_options_table = ['All'] + sorted([str(x) for x in filtered_df['ebno'].dropna().unique()])
-                selected_ebno_table = st.selectbox("EBNO for Details Table", ebno_options_table, index=0, key="spg_ebno_table_select")
-                if selected_ebno_table != 'All':
-                    ebno_df = filtered_df[filtered_df['ebno'].astype(str) == selected_ebno_table]
-                    if not ebno_df.empty:
-                        grouped = ebno_df.groupby(['doffdate', 'shift'], as_index=False)
-                        rows = []
-                        for (date, shift), group in grouped:
-                            eff_vals = group['eff']
-                            eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
-                            eff = round(eff_vals.mean(), 2) if not eff_vals.empty else ''
-                            eff_a = ebno_df[(ebno_df['doffdate'] == date) & (ebno_df['shift'] == 'A')]['eff']
-                            eff_a = eff_a[(eff_a > 0) & (~eff_a.isnull())]
-                            eff_b = ebno_df[(ebno_df['doffdate'] == date) & (ebno_df['shift'] == 'B')]['eff']
-                            eff_b = eff_b[(eff_b > 0) & (~eff_b.isnull())]
-                            eff_c = ebno_df[(ebno_df['doffdate'] == date) & (ebno_df['shift'] == 'C')]['eff']
-                            eff_c = eff_c[(eff_c > 0) & (~eff_c.isnull())]
-                            eff_a_val = round(eff_a.mean(), 2) if not eff_a.empty else ''
-                            eff_b_val = round(eff_b.mean(), 2) if not eff_b.empty else ''
-                            eff_c_val = round(eff_c.mean(), 2) if not eff_c.empty else ''
-                            avg_eff = [v for v in [eff_a_val, eff_b_val, eff_c_val] if isinstance(v, (int, float))]
-                            avg_eff_val = round(sum(avg_eff) / len(avg_eff), 2) if avg_eff else ''
-                            rows.append({
-                                'Date': date,
-                                'Shift': shift,
-                                'EBNO': selected_ebno_table,
-                                'Eff': eff,
-                                'EffA': eff_a_val,
-                                'EffB': eff_b_val,
-                                'EffC': eff_c_val,
-                                'AvgEff': avg_eff_val
-                            })
-                        result_df = pd.DataFrame(rows)
-                        # Add summary row for averages
-                        if not result_df.empty:
-                            avg_row = {'Date': 'Avg', 'Shift': '', 'EBNO': selected_ebno_table}
-                            for col in ['Eff', 'EffA', 'EffB', 'EffC', 'AvgEff']:
-                                vals = pd.to_numeric(result_df[col], errors='coerce')
-                                vals = vals[~vals.isnull()]
-                                avg_row[col] = round(vals.mean(), 2) if not vals.empty else ''
-                            result_df = pd.concat([result_df, pd.DataFrame([avg_row])], ignore_index=True)
-                        st.markdown('**EBNO/Shiftwise Eff Table (Details)**')
-                        st.dataframe(result_df, hide_index=True)
-                    else:
-                        st.info('No data for selected EBNO.')
+            # --- New Table: Date, Shift, EBNO, FrameNo, Eff, EffA, EffB, EffC, AvgEff (filtered by selected EBNO) ---
+            if selected_ebno and selected_ebno != 'All' and 'ebno' in filtered_df.columns:
+                ebno_df = filtered_df[filtered_df['ebno'].astype(str) == selected_ebno]
+                if not ebno_df.empty:
+                    # Use the original (unfiltered) df for EffA, EffB, EffC
+                    orig_df = df.copy()
+                    grouped = ebno_df.groupby(['doffdate', 'shift', 'frameno'], as_index=False)
+                    rows = []
+                    for (date, shift, frameno), group in grouped:
+                        # Eff: average for selected EBNO, date, shift, frameno
+                        eff_vals = group['eff']
+                        eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
+                        eff = round(eff_vals.mean(), 2) if not eff_vals.empty else ''
+                        # EffA, EffB, EffC: average for ALL spinners (all EBNOs) who worked on that date, frameno, and shift A/B/C (from original df, not filtered by EBNO)
+                        eff_a = orig_df[(orig_df['doffdate'] == date) & (orig_df['frameno'] == frameno) & (orig_df['shift'] == 'A')]['eff']
+                        eff_a = eff_a[(eff_a > 0) & (~eff_a.isnull())]
+                        eff_b = orig_df[(orig_df['doffdate'] == date) & (orig_df['frameno'] == frameno) & (orig_df['shift'] == 'B')]['eff']
+                        eff_b = eff_b[(eff_b > 0) & (~eff_b.isnull())]
+                        eff_c = orig_df[(orig_df['doffdate'] == date) & (orig_df['frameno'] == frameno) & (orig_df['shift'] == 'C')]['eff']
+                        eff_c = eff_c[(eff_c > 0) & (~eff_c.isnull())]
+                        eff_a_val = round(eff_a.mean(), 2) if not eff_a.empty else ''
+                        eff_b_val = round(eff_b.mean(), 2) if not eff_b.empty else ''
+                        eff_c_val = round(eff_c.mean(), 2) if not eff_c.empty else ''
+                        avg_eff = [v for v in [eff_a_val, eff_b_val, eff_c_val] if isinstance(v, (int, float))]
+                        avg_eff_val = round(sum(avg_eff) / len(avg_eff), 2) if avg_eff else ''
+                        rows.append({
+                            'Date': date,
+                            'Shift': shift,
+                            'EBNO': selected_ebno,
+                            'FrameNo': frameno,
+                            'Eff': eff,
+                            'EffA': eff_a_val,
+                            'EffB': eff_b_val,
+                            'EffC': eff_c_val,
+                            'AvgEff': avg_eff_val
+                        })
+                    result_df = pd.DataFrame(rows)
+                    # Add summary row for averages
+                    if not result_df.empty:
+                        avg_row = {'Date': 'Avg', 'Shift': '', 'EBNO': selected_ebno, 'FrameNo': ''}
+                        for col in ['Eff', 'EffA', 'EffB', 'EffC', 'AvgEff']:
+                            vals = pd.to_numeric(result_df[col], errors='coerce')
+                            vals = vals[~vals.isnull()]
+                            avg_row[col] = round(vals.mean(), 2) if not vals.empty else ''
+                        result_df = pd.concat([result_df, pd.DataFrame([avg_row])], ignore_index=True)
+                    st.markdown('**EBNO/Shiftwise Eff Table (Details)**')
+                    st.dataframe(result_df, hide_index=True)
+                else:
+                    st.info('No data for selected EBNO.')
         else:
             st.info("No data available for the selected period.")
 
