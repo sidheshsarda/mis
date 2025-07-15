@@ -32,3 +32,15 @@ def spg_details_date(selected_date, start_date):
 	if 'doffdate' in df.columns:
 		df['doffdate'] = pd.to_datetime(df['doffdate']).dt.strftime('%Y-%m-%d')
 	return df, df.to_json(orient="records")
+
+def get_name (ebno):
+	query = f"""
+	    select wm.eb_no as EBNO, concat(wm.worker_name,' ',ifnull(wm.middle_name,' '),' ',ifnull(wm.last_name ,'') ) 
+    as Name from vowsls.worker_master wm  where wm.eb_no = '{ebno}' and wm.company_id = 2;
+	"""
+	with engine.connect() as conn:
+		df = pd.read_sql(query, conn)
+	if not df.empty:
+		return df.iloc[0]['Name']
+	else:
+		return "Unknown"

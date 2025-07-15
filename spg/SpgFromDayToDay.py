@@ -28,11 +28,23 @@ def spg_from_day_to_day_view():
         if not df.empty:
             # --- Add typeable selectboxes for Shift, EBNO, FrameNo, Q_Code, Quality ---
             shift_options = ['All'] + sorted([str(x) for x in df['shift'].dropna().unique()]) if 'shift' in df.columns else []
-            ebno_options = ['All'] + sorted([str(x) for x in df['ebno'].dropna().unique()]) if 'ebno' in df.columns else []
+            # EBNO prefix filter
+            ebno_prefix_options = ['All', 'L', 'T', 'C']
+            col_prefix, col1, col2, col3, col4, col5 = st.columns(6)
+            with col_prefix:
+                selected_ebno_prefix = st.selectbox("EBNO Prefix", ebno_prefix_options, index=0, key="spg_ebno_prefix_select")
+            # Filter EBNOs by prefix if selected
+            if 'ebno' in df.columns:
+                all_ebnos = sorted([str(x) for x in df['ebno'].dropna().unique()])
+                if selected_ebno_prefix and selected_ebno_prefix != 'All':
+                    ebno_options = ['All'] + [eb for eb in all_ebnos if eb.startswith(selected_ebno_prefix)]
+                else:
+                    ebno_options = ['All'] + all_ebnos
+            else:
+                ebno_options = []
             frameno_options = ['All'] + sorted([str(x) for x in df['frameno'].dropna().unique()]) if 'frameno' in df.columns else []
             qcode_options = ['All'] + sorted([str(x) for x in df['q_code'].dropna().unique()]) if 'q_code' in df.columns else []
             quality_options = ['All'] + sorted([str(x) for x in df['quality'].dropna().unique()]) if 'quality' in df.columns else []
-            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 selected_shift = st.selectbox("Shift", shift_options, index=0, key="spg_shift_select") if shift_options else None
             with col2:
@@ -43,8 +55,18 @@ def spg_from_day_to_day_view():
                 selected_qcode = st.selectbox("Q Code", qcode_options, index=0, key="spg_qcode_select") if qcode_options else None
             with col5:
                 selected_quality = st.selectbox("Quality", quality_options, index=0, key="spg_quality_select") if quality_options else None
+
+            # Show Spinner Name if EBNO is selected (not 'All')
+            if selected_ebno and selected_ebno != 'All':
+                from spg.query import get_name
+                spinner_name = get_name(selected_ebno)
+                st.markdown(f"**Spinner Name:** {spinner_name}")
+
             # Filter dataframe based on selections
             filtered_df = df.copy()
+            # Apply EBNO prefix filter first
+            if selected_ebno_prefix and selected_ebno_prefix != 'All':
+                filtered_df = filtered_df[filtered_df['ebno'].astype(str).str.startswith(selected_ebno_prefix)]
             if selected_shift and selected_shift != 'All':
                 filtered_df = filtered_df[filtered_df['shift'].astype(str) == selected_shift]
             if selected_ebno and selected_ebno != 'All':
@@ -169,6 +191,34 @@ def spg_from_day_to_day_view():
                     st.dataframe(result_df, hide_index=True)
                 else:
                     st.info('No data for selected EBNO.')
+            # --- New Table: Daywise Avg Eff and Shift for selected EBNO ---
+            if selected_ebno and selected_ebno != 'All' and 'ebno' in filtered_df.columns:
+                ebno_df = filtered_df[filtered_df['ebno'].astype(str) == selected_ebno]
+                if not ebno_df.empty:
+                    # Group by date and shift, aggregate average eff across all frames for that EBNO
+                    grouped = ebno_df.groupby(['doffdate', 'shift'], as_index=False)
+                    rows = []
+                    for (date, shift), group in grouped:
+                        eff_vals = group['eff']
+                        eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
+                        avg_eff = round(eff_vals.mean(), 2) if not eff_vals.empty else ''
+                        frames = ', '.join(sorted([str(f) for f in group['frameno'].unique()]))
+                        rows.append({
+                            'Date': date,
+                            'Shift': shift,
+                            'FrameNos': frames,
+                            'AvgEff': avg_eff
+                        })
+                    result_df = pd.DataFrame(rows)
+                    # Add summary row for averages
+                    if not result_df.empty:
+                        avg_row = {'Date': 'Avg', 'Shift': '', 'FrameNos': ''}
+                        vals = pd.to_numeric(result_df['AvgEff'], errors='coerce')
+                        vals = vals[~vals.isnull()]
+                        avg_row['AvgEff'] = round(vals.mean(), 2) if not vals.empty else ''
+                        result_df = pd.concat([result_df, pd.DataFrame([avg_row])], ignore_index=True)
+                    st.markdown('**Daywise Avg Eff and Shift for Spinner**')
+                    st.dataframe(result_df, hide_index=True)
         else:
             st.info("No data available for the selected period.")
 
