@@ -42,7 +42,7 @@ select doffdate,substr(spell,1,1) shift,attendance_type,ifnull(ebno,"Contract") 
 	and sdt.tran_date=prd.doffdate
 	left join EMPMILL12.spining_master sm on sdt.company_id=sm.company_id and sdt.q_code =sm.q_code
 	where  (da.worked_designation_id in (213,50,55,241,252,195,242) or prd.ebno is null)
-	) g where g.spell = 'C'
+	) g
 	group by doffdate,substr(spell,1,1),ebno,frameno,q_code,quality,attendance_type
 	order by frameno ,substr(spell,1,1)
 	"""
