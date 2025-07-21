@@ -3,7 +3,7 @@ from db import engine
 
 def spg_details_date(selected_date, start_date):
 	query = f"""
-	select doffdate,substr(spell,1,1) shift,attendance_type,ebno,frameno,q_code,quality,
+	select doffdate,substr(spell,1,1) shift,attendance_type,ifnull(ebno,"Contract") as ebno,frameno,q_code,quality,
 	sum(netwt) netwt,sum(whrs) whrs,sum(stdprod) stdprod,
 	sum(noofframe) noofframe,round(sum(netwt)/sum(stdprod)*100,2)  eff from  
 	(
