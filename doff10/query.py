@@ -66,30 +66,34 @@ group by  d.spell ,d.frameno, CONCAT(d.q_code, "-",wqm.quality_name) order by sp
 
 def get_dofftable_details(start_date, end_date):
     query = f"""
-        SELECT 
-            doffdate, 
+               SELECT 
+            DATE(doffdate) as doffdate, 
             substr(spell,1,1) as shift,
             frameno ,
             q_code ,
+            wqm.quality_name ,
             ebno ,
             ROUND(SUM(netwt), 0) as total_netwt 
         FROM 
             dofftable d 
+            left join weaving_quality_master wqm on wqm.quality_code = d.q_code and d.company_id = wqm.company_id
         WHERE 
             doffdate BETWEEN '{start_date}' AND '{end_date}' 
-            AND company_id = 2 
+            AND d.company_id = 2 
             AND is_active = 1 
         GROUP BY 
-                        doffdate, 
+            DATE(doffdate), 
             substr(spell,1,1),
             frameno ,
             q_code ,
+            quality_name,
             ebno
         ORDER BY 
-            doffdate, 
+            DATE(doffdate), 
             substr(spell,1,1),
             frameno ,
-            q_code DESC;
+            q_code,
+               quality_name DESC;
     """
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
@@ -122,6 +126,26 @@ LEFT JOIN dofftable latest_doffs ON latest_doffs.auto_id = latest_ids.latest_dof
 WHERE d.company_id = 2 AND d.doffdate = '{selected_date3}' AND d.is_active = 1
 GROUP BY d.spell, d.frameno, CONCAT(d.q_code, "-", wqm.quality_name), latest_doffs.netwt
 ORDER BY d.spell, CAST(d.frameno AS UNSIGNED);
+    """
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn)
+    return df, df.to_json(orient="records")
+
+def get_frame_quality_details(start_date, end_date, frameno, q_code):
+    query = f"""
+           select date(d.doffdate) as "Date", 
+           substr(d.spell ,1,1) as "Shift", d.ebno as "EBNO"
+           ,count(d.netwt) as "NumberOffDoff", 
+           round(sum(d.netwt),0) as "Production",
+           round(avg(d.netwt),0) as "AvgDoffWt", 
+           max(d.netwt) as "MaxDoff", 
+           min(d.netwt)  as "MinDoff"
+           from dofftable d 
+           where d.company_id =2 
+           and d.doffdate between '{start_date}' and '{end_date}' 
+           and d.frameno = {frameno} and d.q_code = '{q_code}'
+           and d.is_active =1
+           group by d.doffdate, substr(d.spell ,1,1), d.ebno
     """
     with engine.connect() as conn:
         df = pd.read_sql(query, conn)
