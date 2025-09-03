@@ -16,4 +16,5 @@ dependencies = [
     "st-pages>=1.0.1",
     "streamlit>=1.45.0",
     "streamlit-extras>=0.7.5",
+    "yfinance>=0.2.65",
 ]
