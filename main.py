@@ -23,6 +23,7 @@ st.markdown("""
 st.markdown("""
 <a class="icon-btn" href="/Doff_Details" target="_self">📋<span>Doff Details</span></a>
 <a class="icon-btn" href="/Daily_Summary" target="_self">📊<span>Daily Summary</span></a>
+<a class="icon-btn" href="/SpreaderProductionEntry" target="_self">🧵<span>Spreader Production</span></a>
 """, unsafe_allow_html=True)
 
 
