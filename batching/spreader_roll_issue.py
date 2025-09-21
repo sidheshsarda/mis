@@ -76,3 +76,5 @@ def insert_spreader_roll_issue(
         except Exception:
             rid = conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
             return int(rid) if rid is not None else None
+
+

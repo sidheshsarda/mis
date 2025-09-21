@@ -297,3 +297,5 @@ def fetch_recent_spreader_entries(limit: int = 25) -> pd.DataFrame:
 
 # Ensure table exists on import so first page load works.
 ensure_spreader_table()
+
+
