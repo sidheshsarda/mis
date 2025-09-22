@@ -620,16 +620,23 @@ with tab3:
                 _itext(
                     """
                     SELECT 
-                        entry_id_grp,
-                        issue_time,
-                        spell,
-                        issue_date,
-                        wt_per_roll,
-                        no_of_rolls,
-                        breaker_inter_no
-                    FROM EMPMILL12.spreader_roll_issue
-                    WHERE issue_date = :d
-                    ORDER BY issue_time, entry_id_grp
+                        i.entry_id_grp,
+                        i.issue_time,
+                        i.spell,
+                        i.issue_date,
+                        i.wt_per_roll,
+                        i.no_of_rolls,
+                        i.breaker_inter_no,
+                        p.bin_no,
+                        p.jute_quality_id
+                    FROM EMPMILL12.spreader_roll_issue i
+                    LEFT JOIN (
+                        SELECT entry_id_grp, bin_no, jute_quality_id
+                        FROM EMPMILL12.spreader_prod_entry
+                        GROUP BY entry_id_grp, bin_no, jute_quality_id
+                    ) p ON p.entry_id_grp = i.entry_id_grp
+                    WHERE i.issue_date = :d
+                    ORDER BY i.issue_time, i.entry_id_grp
                     """
                 ),
                 _conn,
@@ -639,11 +646,14 @@ with tab3:
             # Derive weight issued (kg/MT)
             issue_rows['Issued Weight (kg)'] = (issue_rows['no_of_rolls'] * issue_rows['wt_per_roll'].fillna(0)).round(2)
             issue_rows['Issued Weight (MT)'] = (issue_rows['Issued Weight (kg)'] / 1000).round(2)
-            display_cols = ['issue_time','spell','entry_id_grp','wt_per_roll','no_of_rolls','Issued Weight (kg)','Issued Weight (MT)','breaker_inter_no']
+            # Map jute quality
+            jq_map_local = dict(zip(jq_df['id'], jq_df['jute_quality']))
+            issue_rows['Jute Quality'] = issue_rows['jute_quality_id'].map(jq_map_local)
+            display_cols = ['issue_time','spell','bin_no','Jute Quality','wt_per_roll','no_of_rolls','Issued Weight (kg)','Issued Weight (MT)','breaker_inter_no']
             issue_display = issue_rows[display_cols].rename(columns={
                 'issue_time':'Hour',
                 'spell':'Spell',
-                'entry_id_grp':'Group',
+                'bin_no':'Bin',
                 'wt_per_roll':'Wt/Roll (kg)',
                 'no_of_rolls':'Rolls',
                 'breaker_inter_no':'Breaker Inter'
@@ -654,7 +664,8 @@ with tab3:
                 'Index':'',
                 'Hour':'',
                 'Spell':'',
-                'Group':'',
+                'Bin':'',
+                'Jute Quality':'',
                 'Wt/Roll (kg)':None,
                 'Rolls': int(issue_display['Rolls'].sum()),
                 'Issued Weight (kg)': round(issue_display['Issued Weight (kg)'].sum(),2),

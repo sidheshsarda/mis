@@ -91,26 +91,32 @@ def fetch_available_weights_for_group(entry_id_grp: int) -> "pd.DataFrame":
     Columns: wt_per_roll, produced_rolls, issued_rolls, available_rolls
     Only includes weights with available_rolls > 0.
     """
+    # Previous implementation caused inflated produced_rolls when multiple issue rows existed
+    # because of join multiplication (production rows x issue rows).
+    # Fix: aggregate production and issue separately then join.
     sql = text(
         """
+        WITH prod AS (
+            SELECT wt_per_roll, SUM(no_of_rolls) AS produced_rolls
+            FROM EMPMILL12.spreader_prod_entry
+            WHERE entry_id_grp = :entry_id_grp
+            GROUP BY wt_per_roll
+        ),
+        issu AS (
+            SELECT wt_per_roll, SUM(no_of_rolls) AS issued_rolls
+            FROM EMPMILL12.spreader_roll_issue
+            WHERE entry_id_grp = :entry_id_grp
+            GROUP BY wt_per_roll
+        )
         SELECT 
-            wt_per_roll,
-            produced_rolls,
-            issued_rolls,
-            (produced_rolls - issued_rolls) AS available_rolls
-        FROM (
-            SELECT 
-                p.wt_per_roll,
-                SUM(p.no_of_rolls) AS produced_rolls,
-                COALESCE(SUM(i.no_of_rolls), 0) AS issued_rolls
-            FROM EMPMILL12.spreader_prod_entry p
-            LEFT JOIN EMPMILL12.spreader_roll_issue i
-                ON i.entry_id_grp = p.entry_id_grp AND i.wt_per_roll = p.wt_per_roll
-            WHERE p.entry_id_grp = :entry_id_grp
-            GROUP BY p.wt_per_roll
-        ) t
-        WHERE (produced_rolls - issued_rolls) > 0
-        ORDER BY wt_per_roll
+            p.wt_per_roll,
+            p.produced_rolls,
+            COALESCE(i.issued_rolls, 0) AS issued_rolls,
+            (p.produced_rolls - COALESCE(i.issued_rolls,0)) AS available_rolls
+        FROM prod p
+        LEFT JOIN issu i ON i.wt_per_roll = p.wt_per_roll
+        WHERE (p.produced_rolls - COALESCE(i.issued_rolls,0)) > 0
+        ORDER BY p.wt_per_roll
         """
     )
     with engine.connect() as conn:
