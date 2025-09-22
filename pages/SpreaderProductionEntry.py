@@ -698,22 +698,18 @@ with tab4:
     from sqlalchemy import text as _t4text
     from db import engine as _t4engine
 
-    c1, c2, c3 = st.columns(3)
+    # New UX: user selects Closing (snapshot) date/hour; Opening is auto 24h prior
+    c1, c2 = st.columns(2)
     with c1:
-        snap_date = st.date_input("Snapshot Date", datetime.date.today(), key="rst_snap_date")
+        closing_date = st.date_input("Closing (Snapshot) Date", datetime.date.today(), key="rst_closing_date")
     with c2:
-        snap_hour = st.number_input("Snapshot Hour (0-23)", min_value=0, max_value=23, step=1, value=6, key="rst_snap_hour")
-    with c3:
-        lookback_hours = st.number_input("Lookback Hours", min_value=1, max_value=240, value=72, step=1, key="rst_lookback_hours")
+        closing_hour = st.number_input("Closing Hour (0-23)", min_value=0, max_value=23, step=1, value=6, key="rst_closing_hour")
 
-    # Compute start/end datetimes
-    snapshot_dt = datetime.datetime.combine(snap_date, datetime.time(int(snap_hour)))
-    start_dt = snapshot_dt - datetime.timedelta(hours=int(lookback_hours))
-    # Strings for SQL (YYYY-MM-DD HH)
-    snapshot_str = snapshot_dt.strftime("%Y-%m-%d %H")
-    start_str = start_dt.strftime("%Y-%m-%d %H")
-
-    st.caption(f"Window Start: {start_str}:00 | Snapshot: {snapshot_str}:00")
+    closing_dt = datetime.datetime.combine(closing_date, datetime.time(int(closing_hour)))
+    opening_dt = closing_dt - datetime.timedelta(hours=24)
+    closing_str = closing_dt.strftime("%Y-%m-%d %H")
+    opening_str = opening_dt.strftime("%Y-%m-%d %H")
+    st.caption(f"Opening: {opening_str}:00 | Closing: {closing_str}:00 (24h window)")
 
     # Parameterized adaptation of provided SQL template.
     # Logic:
@@ -734,10 +730,10 @@ with tab4:
             FROM (
                 SELECT spe.entry_id_grp, spe.entry_date, spe.entry_time, spe.bin_no, spe.wt_per_roll,
                        spe.jute_quality_id, spe.no_of_rolls,
-                       CASE WHEN spe.entry_time <= 6 THEN DATE_ADD(spe.entry_date, INTERVAL 1 DAY) ELSE spe.entry_date END AS proddate
+                       CASE WHEN spe.entry_time < 6 THEN DATE_ADD(spe.entry_date, INTERVAL -1 DAY) ELSE spe.entry_date END AS proddate
                 FROM EMPMILL12.spreader_prod_entry spe
             ) sprdprod
-            WHERE STR_TO_DATE(CONCAT(proddate, ' ', entry_time), '%Y-%m-%d %H') < STR_TO_DATE(:snapshot_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(proddate, ' ', entry_time), '%Y-%m-%d %H') < STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
 
             UNION ALL
@@ -747,12 +743,12 @@ with tab4:
                    -SUM(no_of_rolls) AS openstock, 0 AS prodroll, 0 AS issueroll
             FROM (
                 SELECT sri.entry_id_grp, spe.jute_quality_id, spe.bin_no, sri.wt_per_roll,
-                       CASE WHEN sri.issue_time <= 6 THEN DATE_ADD(sri.issue_date, INTERVAL 1 DAY) ELSE sri.issue_date END AS issudate,
+                       CASE WHEN sri.issue_time < 6 THEN DATE_ADD(sri.issue_date, INTERVAL -1 DAY) ELSE sri.issue_date END AS issudate,
                        sri.issue_time, sri.no_of_rolls
                 FROM EMPMILL12.spreader_roll_issue sri
                 LEFT JOIN EMPMILL12.spreader_prod_entry spe ON spe.entry_id_grp = sri.entry_id_grp
             ) sprdissu
-            WHERE STR_TO_DATE(CONCAT(issudate, ' ', issue_time), '%Y-%m-%d %H') < STR_TO_DATE(:snapshot_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(issudate, ' ', issue_time), '%Y-%m-%d %H') < STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
 
             UNION ALL
@@ -763,10 +759,10 @@ with tab4:
             FROM (
                 SELECT spe.entry_id_grp, spe.entry_date, spe.entry_time, spe.bin_no, spe.wt_per_roll,
                        spe.jute_quality_id, spe.no_of_rolls,
-                       CASE WHEN spe.entry_time <= 6 THEN DATE_ADD(spe.entry_date, INTERVAL 1 DAY) ELSE spe.entry_date END AS proddate
+                       CASE WHEN spe.entry_time < 6 THEN DATE_ADD(spe.entry_date, INTERVAL -1 DAY) ELSE spe.entry_date END AS proddate
                 FROM EMPMILL12.spreader_prod_entry spe
             ) sprdprod2
-            WHERE STR_TO_DATE(CONCAT(proddate, ' ', entry_time), '%Y-%m-%d %H') BETWEEN STR_TO_DATE(:start_dt, '%Y-%m-%d %H') AND STR_TO_DATE(:snapshot_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(proddate, ' ', entry_time), '%Y-%m-%d %H') BETWEEN STR_TO_DATE(:opening_dt, '%Y-%m-%d %H') AND STR_TO_DATE(:closing_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
 
             UNION ALL
@@ -776,12 +772,12 @@ with tab4:
                    0 AS openstock, 0 AS prodroll, SUM(no_of_rolls) AS issueroll
             FROM (
                 SELECT sri.entry_id_grp, spe.jute_quality_id, spe.bin_no, sri.wt_per_roll,
-                       CASE WHEN sri.issue_time <= 6 THEN DATE_ADD(sri.issue_date, INTERVAL 1 DAY) ELSE sri.issue_date END AS issudate,
+                       CASE WHEN sri.issue_time < 6 THEN DATE_ADD(sri.issue_date, INTERVAL -1 DAY) ELSE sri.issue_date END AS issudate,
                        sri.issue_time, sri.no_of_rolls
                 FROM EMPMILL12.spreader_roll_issue sri
                 LEFT JOIN EMPMILL12.spreader_prod_entry spe ON spe.entry_id_grp = sri.entry_id_grp
             ) sprdissu2
-            WHERE STR_TO_DATE(CONCAT(issudate, ' ', issue_time), '%Y-%m-%d %H') BETWEEN STR_TO_DATE(:start_dt, '%Y-%m-%d %H') AND STR_TO_DATE(:snapshot_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(issudate, ' ', issue_time), '%Y-%m-%d %H') BETWEEN STR_TO_DATE(:opening_dt, '%Y-%m-%d %H') AND STR_TO_DATE(:closing_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
         ) g
         GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
@@ -790,16 +786,16 @@ with tab4:
         """
     )
 
-    load_btn = st.button("Load Position", key="rst_load_btn")
+    load_btn = st.button("Load 24h Window", key="rst_load_btn")
     if load_btn:
         try:
             with _t4engine.connect() as conn:
-                pos_df = pd.read_sql(raw_sql, conn, params={"snapshot_dt": snapshot_str, "start_dt": start_str})
+                pos_df = pd.read_sql(raw_sql, conn, params={"opening_dt": opening_str, "closing_dt": closing_str})
             if pos_df.empty:
                 st.info("No data for the selected window.")
             else:
-                # Display the effective period (after successful load)
-                st.markdown(f"**Period:** {start_str}:00 to {snapshot_str}:00 (inclusive)")
+                # Display the effective 24h period (after successful load)
+                st.markdown(f"**Period:** {opening_str}:00 to {closing_str}:00 (inclusive, 24h)")
                 # Map quality names
                 jq_map = dict(zip(jq_df['id'], jq_df['jute_quality']))
                 pos_df['Jute Quality'] = pos_df['jute_quality_id'].map(jq_map)
