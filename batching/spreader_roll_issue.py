@@ -78,3 +78,29 @@ def insert_spreader_roll_issue(
             return int(rid) if rid is not None else None
 
 
+def delete_spreader_roll_issue(issue_id: int) -> bool:
+    """Delete a single issue entry by its primary key id if such a column exists.
+
+    Some historical schemas might not have an explicit primary key named id for this
+    table. We assume a conventional auto increment 'spreader_roll_issue_id' or 'id'.
+    We'll attempt both; if neither works, no rows will be deleted and False returned.
+    """
+    # Try primary key variants in order
+    pk_variants = [
+        "spreader_roll_issue_id",
+        "id"
+    ]
+    deleted = False
+    with engine.begin() as conn:
+        for pk in pk_variants:
+            try:
+                sql = text(f"DELETE FROM EMPMILL12.spreader_roll_issue WHERE {pk} = :iid LIMIT 1")
+                res = conn.execute(sql, {"iid": int(issue_id)})
+                if res.rowcount > 0:
+                    deleted = True
+                    break
+            except Exception:
+                continue
+    return deleted
+
+

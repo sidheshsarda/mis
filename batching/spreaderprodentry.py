@@ -1,4 +1,10 @@
 from sqlalchemy import update
+from sqlalchemy import text
+import pandas as pd
+import datetime
+from typing import Optional
+from db import engine
+from .spreader_rules import evaluate_4hr_window
 
 def update_issue_for_bin(bin_no: int, issue_date, issue_time, issue_spell, issue_rolls):
     """
@@ -122,12 +128,13 @@ def fetch_available_weights_for_group(entry_id_grp: int) -> "pd.DataFrame":
     with engine.connect() as conn:
         df = pd.read_sql(sql, conn, params={"entry_id_grp": int(entry_id_grp)})
     return df
-import datetime
-from typing import Optional
-import pandas as pd
-from sqlalchemy import text
-from db import engine
-from .spreader_rules import evaluate_4hr_window
+"""Spreader production entry data access helpers.
+
+Adds deletion helper for safely removing a production entry row.
+Deletion is restricted to a single row id (spreader_prod_entry_id) to avoid
+accidental group-wide data loss. If the provided id does not exist, the
+function returns False.
+"""
 
 
 def ensure_spreader_table() -> None:
@@ -265,6 +272,25 @@ def insert_spreader_prod_entry(
         except Exception:
             rid = conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
             return int(rid) if rid is not None else None
+
+
+def delete_spreader_prod_entry(row_id: int) -> bool:
+    """Delete a single production entry by its primary key.
+
+    Returns True if a row was deleted, False otherwise.
+    NOTE: Does not attempt to rebalance stock; caller should ensure this
+    deletion is permissible (e.g., no issues already issued from its group/weight).
+    For simplicity we allow deletion and rely on downstream aggregates to
+    reflect the change. In a stricter environment we'd first validate that
+    no issues reference this row's group & weight produced after removal.
+    """
+    sql = text("DELETE FROM EMPMILL12.spreader_prod_entry WHERE spreader_prod_entry_id = :rid LIMIT 1")
+    try:
+        with engine.begin() as conn:
+            res = conn.execute(sql, {"rid": int(row_id)})
+            return res.rowcount > 0
+    except Exception:
+        return False
 
 
 def fetch_recent_spreader_entries(limit: int = 25) -> pd.DataFrame:
