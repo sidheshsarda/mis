@@ -386,15 +386,63 @@ with tab1:
                     with c1:
                         if st.button("Confirm Delete", key='prod_confirm_delete'):
                             if st.session_state['_prod_pw_input'] == PASSWORD:
-                                deleted_ct = 0
-                                for pid in ids:
-                                    if delete_spreader_prod_entry(pid):
-                                        deleted_ct += 1
-                                st.success(f"Deleted {deleted_ct} / {len(ids)} entries")
-                                st.session_state['_prod_pw_input'] = ''
-                                st.session_state['_prod_delete_trigger'] = False
-                                st.session_state['_prod_pending_delete_ids'] = []
-                                st.rerun()
+                                # Pre-delete validation: block if any selected prod row has issues in the same group
+                                try:
+                                    from sqlalchemy import text as __text
+                                    from db import engine as __engine
+                                    # Normalize IDs to integers
+                                    _ids = []
+                                    for _v in ids:
+                                        try:
+                                            _ids.append(int(_v))
+                                        except Exception:
+                                            pass
+                                    if _ids:
+                                        id_params = {f"id{i}": v for i, v in enumerate(_ids)}
+                                        id_placeholders = ",".join([f":id{i}" for i in range(len(_ids))])
+                                        with __engine.connect() as _conn_:
+                                            map_rows = _conn_.execute(
+                                                __text(f"""
+                                                    SELECT spreader_prod_entry_id, entry_id_grp
+                                                    FROM EMPMILL12.spreader_prod_entry
+                                                    WHERE spreader_prod_entry_id IN ({id_placeholders})
+                                                """),
+                                                id_params
+                                            ).fetchall()
+                                        groups = [r[1] for r in map_rows if r and r[1] is not None]
+                                        groups = list(set(groups))
+                                    else:
+                                        groups = []
+                                    blocked_groups = []
+                                    if groups:
+                                        g_params = {f"g{i}": int(g) for i, g in enumerate(groups)}
+                                        g_placeholders = ",".join([f":g{i}" for i in range(len(groups))])
+                                        with __engine.connect() as _conn2_:
+                                            issue_rows = _conn2_.execute(
+                                                __text(f"""
+                                                    SELECT DISTINCT entry_id_grp
+                                                    FROM EMPMILL12.spreader_roll_issue
+                                                    WHERE entry_id_grp IN ({g_placeholders})
+                                                """),
+                                                g_params
+                                            ).fetchall()
+                                        issue_groups = {r[0] for r in issue_rows}
+                                        blocked_groups = sorted(list(issue_groups))
+                                    if blocked_groups:
+                                        st.error(f"Issue exists with group id(s) {', '.join(map(str, blocked_groups))} in Issue. Delete the same before deleting production.")
+                                        # Do NOT perform any deletion
+                                    else:
+                                        deleted_ct = 0
+                                        for pid in _ids:
+                                            if delete_spreader_prod_entry(pid):
+                                                deleted_ct += 1
+                                        st.success(f"Deleted {deleted_ct} / {len(_ids)} entries")
+                                        st.session_state['_prod_pw_input'] = ''
+                                        st.session_state['_prod_delete_trigger'] = False
+                                        st.session_state['_prod_pending_delete_ids'] = []
+                                        st.rerun()
+                                except Exception as _vdx:
+                                    st.error(f"Validation failed: {_vdx}")
                             else:
                                 st.error("Incorrect password – no deletions performed.")
                     with c2:
@@ -887,14 +935,14 @@ with tab4:
     #  - closing = opening + prod - issue
     raw_sql = _t4text(
         """
-        SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
+       SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
                SUM(openstock) AS openstock,
                SUM(prodroll)  AS prodroll,
                SUM(issueroll) AS issueroll,
                SUM(openstock) + SUM(prodroll) - SUM(issueroll) AS closstock
         FROM (
             -- Opening stock from production before snapshot
-            SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
+        SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
                    SUM(no_of_rolls) AS openstock, 0 AS prodroll, 0 AS issueroll
             FROM (
                 SELECT spe.entry_id_grp, spe.entry_date, spe.entry_time, spe.bin_no, spe.wt_per_roll,
@@ -902,26 +950,24 @@ with tab4:
                        CASE WHEN spe.entry_time < 6 THEN DATE_ADD(spe.entry_date, INTERVAL -1 DAY) ELSE spe.entry_date END AS proddate
                 FROM EMPMILL12.spreader_prod_entry spe
             ) sprdprod
-            WHERE STR_TO_DATE(CONCAT(proddate, ' ', entry_time), '%Y-%m-%d %H') < STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(entry_date, ' ', entry_time), '%Y-%m-%d %H') < STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
-
             UNION ALL
-
             -- Opening stock negative adjustment from issues before snapshot
             SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
                    -SUM(no_of_rolls) AS openstock, 0 AS prodroll, 0 AS issueroll
             FROM (
-                SELECT sri.entry_id_grp, spe.jute_quality_id, spe.bin_no, sri.wt_per_roll,
+                SELECT sri.entry_id_grp, spe.jute_quality_id, spe.bin_no, sri.wt_per_roll,issue_date,
                        CASE WHEN sri.issue_time < 6 THEN DATE_ADD(sri.issue_date, INTERVAL -1 DAY) ELSE sri.issue_date END AS issudate,
                        sri.issue_time, sri.no_of_rolls
                 FROM EMPMILL12.spreader_roll_issue sri
-                LEFT JOIN EMPMILL12.spreader_prod_entry spe ON spe.entry_id_grp = sri.entry_id_grp
+                LEFT JOIN (select entry_id_grp,bin_no,jute_quality_id,sum(no_of_rolls) pdrolls
+            from EMPMILL12.spreader_prod_entry
+                        group by entry_id_grp,bin_no,jute_quality_id) spe ON spe.entry_id_grp = sri.entry_id_grp
             ) sprdissu
-            WHERE STR_TO_DATE(CONCAT(issudate, ' ', issue_time), '%Y-%m-%d %H') < STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(issue_date, ' ', issue_time), '%Y-%m-%d %H') < STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
-
             UNION ALL
-
             -- Production within window
             SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
                    0 AS openstock, SUM(no_of_rolls) AS prodroll, 0 AS issueroll
@@ -931,22 +977,24 @@ with tab4:
                        CASE WHEN spe.entry_time < 6 THEN DATE_ADD(spe.entry_date, INTERVAL -1 DAY) ELSE spe.entry_date END AS proddate
                 FROM EMPMILL12.spreader_prod_entry spe
             ) sprdprod2
-            WHERE STR_TO_DATE(CONCAT(proddate, ' ', entry_time), '%Y-%m-%d %H') BETWEEN STR_TO_DATE(:opening_dt, '%Y-%m-%d %H') AND STR_TO_DATE(:closing_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(entry_date, ' ', entry_time), '%Y-%m-%d %H') >= STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
+            AND STR_TO_DATE(CONCAT(entry_date, ' ', entry_time), '%Y-%m-%d %H')< STR_TO_DATE(:closing_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
-
             UNION ALL
-
             -- Issues within window
             SELECT bin_no, entry_id_grp, wt_per_roll, jute_quality_id,
                    0 AS openstock, 0 AS prodroll, SUM(no_of_rolls) AS issueroll
             FROM (
-                SELECT sri.entry_id_grp, spe.jute_quality_id, spe.bin_no, sri.wt_per_roll,
+                SELECT sri.entry_id_grp, spe.jute_quality_id, spe.bin_no, sri.wt_per_roll,issue_date,
                        CASE WHEN sri.issue_time < 6 THEN DATE_ADD(sri.issue_date, INTERVAL -1 DAY) ELSE sri.issue_date END AS issudate,
                        sri.issue_time, sri.no_of_rolls
                 FROM EMPMILL12.spreader_roll_issue sri
-                LEFT JOIN EMPMILL12.spreader_prod_entry spe ON spe.entry_id_grp = sri.entry_id_grp
+                LEFT JOIN (select entry_id_grp,bin_no,jute_quality_id,sum(no_of_rolls) pdrolls
+            from EMPMILL12.spreader_prod_entry
+                        group by entry_id_grp,bin_no,jute_quality_id) spe ON spe.entry_id_grp = sri.entry_id_grp
             ) sprdissu2
-            WHERE STR_TO_DATE(CONCAT(issudate, ' ', issue_time), '%Y-%m-%d %H') BETWEEN STR_TO_DATE(:opening_dt, '%Y-%m-%d %H') AND STR_TO_DATE(:closing_dt, '%Y-%m-%d %H')
+            WHERE STR_TO_DATE(CONCAT(issue_date, ' ', issue_time), '%Y-%m-%d %H')>= STR_TO_DATE(:opening_dt, '%Y-%m-%d %H')
+            AND STR_TO_DATE(CONCAT(issue_date, ' ', issue_time), '%Y-%m-%d %H')< STR_TO_DATE(:closing_dt, '%Y-%m-%d %H')
             GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
         ) g
         GROUP BY bin_no, entry_id_grp, wt_per_roll, jute_quality_id
@@ -988,7 +1036,7 @@ with tab4:
                 })
                 # Totals row
                 totals = {
-                    'Bin':'', 'Group':'', 'Wt/Roll (kg)':None, 'Jute Quality':'Total',
+                    'Bin': pd.NA, 'Group':'', 'Wt/Roll (kg)':None, 'Jute Quality':'Total',
                     'Open Rolls': show_df['Open Rolls'].sum(),
                     'Produced Rolls': show_df['Produced Rolls'].sum(),
                     'Issued Rolls': show_df['Issued Rolls'].sum(),
@@ -997,6 +1045,11 @@ with tab4:
                     'Closing Weight (MT)': round(show_df['Closing Weight (MT)'].sum(),2)
                 }
                 show_df = pd.concat([show_df, pd.DataFrame([totals])], ignore_index=True)
+                # Now coerce Bin to Int with 0 decimals (totals NA stays blank in display)
+                try:
+                    show_df['Bin'] = pd.to_numeric(show_df['Bin'], errors='coerce').round(0).astype('Int64')
+                except Exception:
+                    pass
                 # Numeric coercion for formatting
                 for nc in ['Wt/Roll (kg)','Closing Weight (kg)','Closing Weight (MT)']:
                     if nc in show_df.columns:
