@@ -58,6 +58,29 @@ from vowsls.mechine_master mm where mm.company_id =2 and mm.type_of_mechine = 8 
     df = pd.read_sql(query, engine)
     return df
 
+def get_recent_jute_quality_ids_90d() -> list[int]:
+    """
+    Returns distinct jute quality IDs (smli.actual_quality) received in the last 90 days
+    for company_id = 2 based on scm_mr tables. This is used to restrict selectable
+    jute qualities in Tab 1 without altering the base get_jute_quality() query.
+    """
+    query = """
+    SELECT DISTINCT smli.actual_quality AS id
+    FROM vowsls.scm_mr_line_item smli 
+    LEFT JOIN vowsls.scm_mr_hdr smh ON smh.jute_receive_no = smli.jute_receive_no 
+    LEFT JOIN vowsls.jute_quality_price_master jqpm ON jqpm.id = smli.actual_quality AND jqpm.company_id = smh.company_id 
+    WHERE smh.company_id = 2 
+      AND SUBSTR(smli.auto_datetime_insert,1,10) >= DATE_ADD(CURRENT_DATE(), INTERVAL -90 DAY)
+    ;
+    """
+    df = pd.read_sql(query, engine)
+    if 'id' in df.columns and not df.empty:
+        try:
+            return df['id'].dropna().astype(int).unique().tolist()
+        except Exception:
+            return [int(x) for x in df['id'].dropna().unique().tolist()]
+    return []
+
 def get_roll_stock_time(start_dt_str: str, end_dt_str: str) -> pd.DataFrame:
     """
     Returns roll stock summary between the fixed start window and selected end window.

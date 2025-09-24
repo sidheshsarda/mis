@@ -6,7 +6,7 @@ from batching.spreaderprodentry import (
     fetch_bins_with_stock,
     delete_spreader_prod_entry
 )
-from batching.rollestockbatchingquery import get_bin_no, get_jute_quality, get_maturity_hours, get_spreader_machine_no
+from batching.rollestockbatchingquery import get_bin_no, get_jute_quality, get_maturity_hours, get_spreader_machine_no, get_recent_jute_quality_ids_90d
 
 st.set_page_config(page_title="Spreader Production Entry", page_icon="🧵", layout="wide")
 
@@ -17,9 +17,18 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["Production Entry", "Roll Stock", "Issue
 # --- Load dropdown options ---
 bin_options = get_bin_no()
 jq_df = get_jute_quality()
-jq_options = jq_df['jute_quality'].tolist()
+# Filter by recent 90-day actual qualities without changing the base query
+try:
+    _recent_ids = set(get_recent_jute_quality_ids_90d())
+except Exception:
+    _recent_ids = set()
+if not jq_df.empty and _recent_ids:
+    jq_df_filtered = jq_df[jq_df['id'].isin(_recent_ids)].copy()
+else:
+    jq_df_filtered = jq_df.copy()
+jq_options = jq_df_filtered['jute_quality'].tolist()
 # Use 'id' instead of 'jute_quality_id'
-jq_id_map = dict(zip(jq_df['jute_quality'], jq_df['id']))
+jq_id_map = dict(zip(jq_df_filtered['jute_quality'], jq_df_filtered['id']))
 
 # Spreader machine options: display name (code), use id for DB
 spreader_df = get_spreader_machine_no()
@@ -159,8 +168,8 @@ with tab1:
                             )
                 # Debug (optional): uncomment to display window info
                 # st.caption(f"Same-day first hour: {sd_row[0] if sd_row and sd_row[0] is not None else 'N/A'} | Candidate hour: {entry_time} | Diff: {hours_diff if sd_row and sd_row[0] is not None else 0:.2f} hrs")
-        if last_quality is not None and last_quality in jq_df['id'].values:
-            default_quality = jq_df[jq_df['id'] == last_quality]['jute_quality'].values[0]
+        if last_quality is not None and last_quality in jq_df_filtered['id'].values:
+            default_quality = jq_df_filtered[jq_df_filtered['id'] == last_quality]['jute_quality'].values[0]
         else:
             default_quality = jq_options[0]
         quality_index = jq_options.index(default_quality) if default_quality in jq_options else 0
