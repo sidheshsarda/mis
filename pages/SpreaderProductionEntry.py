@@ -6,16 +6,21 @@ from batching.spreaderprodentry import (
     fetch_bins_with_stock,
     delete_spreader_prod_entry
 )
+
 from batching.rollestockbatchingquery import get_bin_no, get_jute_quality, get_maturity_hours, get_spreader_machine_no, get_recent_jute_quality_ids_90d
+
+ 
 
 st.set_page_config(page_title="Spreader Production Entry", page_icon="🧵", layout="wide")
 
 
+
 st.title("Spreader Production Entry")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Production Entry", "Roll Stock", "Issue Roll", "Roll Stock Time", "Spreader Production"])
+tab1, tab2, tab3, tab4, tab5,tab6 = st.tabs(["Production Entry", "Roll Stock", "Issue Roll", "Roll Stock Time", "Spreader Production","Bin Search"])
 
 # --- Load dropdown options ---
 bin_options = get_bin_no()
+
 jq_df = get_jute_quality()
 # Filter by recent 90-day actual qualities without changing the base query
 try:
@@ -29,6 +34,21 @@ else:
 jq_options = jq_df_filtered['jute_quality'].tolist()
 # Use 'id' instead of 'jute_quality_id'
 jq_id_map = dict(zip(jq_df_filtered['jute_quality'], jq_df_filtered['id']))
+
+# Newly add   : for jute quality Search  --  02-10-25
+
+selected_jute_quality = st.selectbox(
+    "Select Jute Quality",
+    options=jq_options,
+    index=0,  # optional: default selection
+    key="jute_quality_dropdown"
+)
+
+# Get the corresponding ID
+selected_id = jq_id_map.get(selected_jute_quality)
+st.write("Selected ID:", selected_id)
+# Newly add  : for jute quality Search  --  02-10-25
+
 
 # Spreader machine options: display name (code), use id for DB
 spreader_df = get_spreader_machine_no()
@@ -179,7 +199,9 @@ with tab1:
         else:
             jute_quality_display = st.selectbox("Jute Quality", jq_options, key="spe_quality_display", index=quality_index)
             jute_quality_id = jq_id_map.get(jute_quality_display, 0)
-        no_of_rolls = st.number_input("No. of Rolls", min_value=0, step=1, value=24, key="spe_no_of_rolls")
+       # Newly add  : value =0 instead of 24 --  02-10-25
+        no_of_rolls = st.number_input("No. of Rolls", min_value=0, step=1, value=0, key="spe_no_of_rolls")
+  
     submit_clicked = st.button("Save Entry")
     if submit_clicked:
         errors = []
@@ -1172,3 +1194,154 @@ with tab5:
         except Exception as _t5ex:
             st.error(f"Error loading production summary: {_t5ex}")
 
+
+# Newly add  tab6 : Bin and Quality Search  --  02-10-25
+with tab6:
+    st.markdown("#### Bin Search")
+    st.caption("Bin And Quality Search production and issues")
+    jq_dfb = get_jute_quality()
+    
+    # Three columns
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        bin_no = st.number_input(
+            "Bin No", 
+            min_value=0, 
+            step=1, 
+            key="bin_no"
+        )
+    # Add "Select All" at the top of the options
+    jq_options_with_all = ["Select All"] + jq_options
+
+    with c2:
+        jute_quality_displaybin = st.selectbox(
+            "Jute Quality", 
+            jq_options_with_all, 
+            key="bin_quality_display", 
+            index=quality_index
+        )
+        jute_quality_bin_id = jq_id_map.get(jute_quality_displaybin, 0)
+    
+    with c3:  # <-- make sure this is inside the 'with c3:' block
+        bin_date = st.date_input(
+            "Closing (Snapshot) Date", 
+            datetime.date.today(), 
+            key="bin_start_date"
+        )
+    # Parameterized adaptation of provided SQL template.
+    # Logic:
+    #  - openstock: production minus issues strictly before snapshot
+    #  - prodroll / issueroll: activity between start_dt and snapshot_dt inclusive
+    #  - closing = opening + prod - issue
+    b_sql =    """
+    select * from (
+      	SELECT 
+    g.*,
+    SUM(
+        CASE 
+            WHEN rem = '1P' THEN no_of_rolls
+            WHEN rem = '2I' THEN -no_of_rolls
+            ELSE 0
+        END
+    ) OVER (PARTITION BY entry_id_grp ORDER BY trandate, rem, entryid) AS cumulative_rolls
+FROM (
+SELECT '1P' rem, spe.entry_id_grp, spe.spreader_prod_entry_id entryid,
+           STR_TO_DATE(CONCAT(ENTRY_DATE, ' ', entry_time), '%Y-%m-%d %H') trandate,
+           spell, spreader_no, spe.jute_quality_id, jute_quality, spe.bin_no, spe.no_of_rolls,
+           pdate,case when entry_time <6 then date_add(entry_date, INTERVAL -1 DAY) else entry_date end
+           actdate
+    FROM EMPMILL12.spreader_prod_entry spe 
+    LEFT JOIN jute_quality_price_master jqpm ON jqpm.id = spe.jute_quality_id 
+	left join (select entry_id_grp,jute_quality_id,bin_no,max(STR_TO_DATE(CONCAT(ENTRY_DATE, ' ', entry_time), '%Y-%m-%d %H')) pdate,sum(no_of_rolls) from  EMPMILL12.spreader_prod_entry spe 
+	group by 
+	entry_id_grp,jute_quality_id,bin_no ) spe2 on spe.entry_id_grp=spe2.entry_id_grp
+    UNION ALL
+    SELECT '2I' rem, sri.entry_id_grp, sri.spreader_roll_issue_id entryid,
+           STR_TO_DATE(CONCAT(issue_DATE, ' ', issue_time), '%Y-%m-%d %H') trandate,
+           sri.spell, ' ' spreader_no, spe.jute_quality_id, jqpm.jute_quality, bin_no, sri.no_of_rolls,
+            pdate,case when issue_time <6 then date_add(issue_date, INTERVAL -1 DAY) else issue_date end
+           actdate
+    FROM EMPMILL12.spreader_roll_issue sri
+    LEFT JOIN (select entry_id_grp,jute_quality_id,bin_no,max(STR_TO_DATE(CONCAT(ENTRY_DATE, ' ', entry_time), '%Y-%m-%d %H')) pdate,sum(no_of_rolls) from  EMPMILL12.spreader_prod_entry spe 
+    group by 
+    entry_id_grp,jute_quality_id,bin_no
+    ) spe ON spe.entry_id_grp = sri.entry_id_grp 
+    LEFT JOIN jute_quality_price_master jqpm ON jqpm.id = spe.jute_quality_id 
+    ) g 
+    ) k """
+
+# Build WHERE clause dynamically
+    where_clauses = []
+    params = {}
+
+    if bin_no > 0:
+        where_clauses.append("bin_no = :bin_no")
+        params["bin_no"] = bin_no
+
+    if jute_quality_bin_id > 0:
+        where_clauses.append("jute_quality_id = :jqualityid")
+        params["jqualityid"] = jute_quality_bin_id
+
+
+    raw_sql = b_sql
+    if where_clauses:
+        raw_sql += " WHERE " + " AND ".join(where_clauses)
+# Add order by
+    raw_sql += " ORDER BY pdate, entry_id_grp, rem, trandate"
+    text_sql = _t4text(raw_sql)            
+
+
+
+    #print(raw_sql)
+    binload_btn = st.button("Search", key="bin_load_btn")
+    if binload_btn:
+        try:
+            with _t4engine.connect() as conn:
+                #pos_dfb = pd.read_sql(raw_sql, conn, params={"bin_no": bin_no, "jqualityid": jute_quality_bin_id})
+                pos_dfb = pd.read_sql(text_sql, conn, params=params)
+            if pos_dfb.empty:
+                st.info("No data for the selected window.")
+            else:
+                # Display the effective 24h period (after successful load)
+                print(pos_dfb)
+
+                st.markdown(f"**Period:** {bin_no}  {jute_quality_bin_id}")
+                # Map quality names
+                jq_mapb = dict(zip(jq_df['id'], jq_df['jute_quality']))
+                pos_dfb['rem'] = pos_dfb['rem']
+              
+                pos_dfb['Jute Quality'] = pos_dfb['jute_quality_id'].map(jq_mapb)
+                # Derived columns
+                pos_dfb['entry_id_grp'] = pos_dfb['entry_id_grp'].fillna(0).astype(int)
+                pos_dfb['entryid'] = pos_dfb['entryid'].fillna(0).astype(int)
+                pos_dfb['trandate'] = pos_dfb['trandate']
+                pos_dfb['jute_quality'] = pos_dfb['jute_quality']
+                pos_dfb['bin_no'] = pos_dfb['bin_no'].fillna(0).astype(int)
+                pos_dfb['no_of_rolls'] = pos_dfb['no_of_rolls'].fillna(0).astype(int)
+                pos_dfb['cumulative_rolls'] = pos_dfb['cumulative_rolls'].fillna(0).astype(int)
+       
+                # Weight metrics (optional) if wt_per_roll present
+                display_cols = [
+                    'rem','entry_id_grp','entryid','trandate','jute_quality',
+                    'bin_no','no_of_rolls','pdate','cumulative_rolls'
+                ]
+                show_dfb = pos_dfb[display_cols].rename(columns={
+                    'bin_no':'Bin',
+                    'entry_id_grp':'Group',
+                    'cumulative_rolls':'No of Rolls'
+                })
+                 # Style
+                try:
+                    styled = styled.hide(axis='index')
+                except Exception:
+                    pass
+                #st.dataframe(styled, use_container_width=True, hide_index=True)
+
+                st.dataframe(show_dfb, use_container_width=True, hide_index=True)
+
+                # Quality-wise aggregation table
+
+        except Exception as ex:
+            st.error(f"Error loading position: {ex}")
+# Newly add  tab6 : Bin and Quality Search  --  02-10-25
