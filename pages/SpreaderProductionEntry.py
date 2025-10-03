@@ -174,12 +174,25 @@ with tab1:
             default_quality = jq_options[0]
         quality_index = jq_options.index(default_quality) if default_quality in jq_options else 0
         if lock_quality and last_quality is not None:
+            # Locked state (do not modify behavior per requirement)
             st.text_input("Jute Quality (locked)", value=default_quality, disabled=True, key="spe_quality_display")
             jute_quality_id = last_quality
         else:
-            jute_quality_display = st.selectbox("Jute Quality", jq_options, key="spe_quality_display", index=quality_index)
-            jute_quality_id = jq_id_map.get(jute_quality_display, 0)
-        no_of_rolls = st.number_input("No. of Rolls", min_value=0, step=1, value=24, key="spe_no_of_rolls")
+            # Provide a blank placeholder so the user must choose/search.
+            placeholder_options = [''] + jq_options
+            # If session already has a selection (and it's valid), keep it; else start blank.
+            current_sel = st.session_state.get('spe_quality_display', '')
+            if current_sel not in placeholder_options:
+                current_sel = ''
+            jute_quality_display = st.selectbox(
+                "Jute Quality",
+                placeholder_options,
+                index=placeholder_options.index(current_sel),
+                key="spe_quality_display"
+            )
+            jute_quality_id = jq_id_map.get(jute_quality_display, 0) if jute_quality_display else 0
+    # Removed default (was 24) so users explicitly enter rolls each time
+    no_of_rolls = st.number_input("No. of Rolls", min_value=0, step=1, value=0, key="spe_no_of_rolls")
     submit_clicked = st.button("Save Entry")
     if submit_clicked:
         errors = []
@@ -217,6 +230,8 @@ with tab1:
             if rid is not None:
                 st.success(f"Saved with ID {rid}")
                 st.toast("Entry saved", icon="✅")
+                # Reset No. of Rolls back to 0 after successful save
+                st.session_state["spe_no_of_rolls"] = 0
                 st.session_state["_spe_refresh_key"] = st.session_state.get("_spe_refresh_key", 0) + 1
                 st.rerun()
             else:
