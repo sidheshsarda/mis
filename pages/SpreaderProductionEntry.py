@@ -278,7 +278,7 @@ with tab1:
                         trolley_no
                     FROM EMPMILL12.spreader_prod_entry
                     WHERE entry_date = :d
-                    ORDER BY entry_time
+                    ORDER BY spreader_prod_entry_id DESC
                     """
                 ),
                 _conn,
@@ -531,6 +531,7 @@ with tab2:
             dt_series = pd.to_datetime(filtered_df['entry_date']) + pd.to_timedelta(filtered_df['entry_time'], unit='h')
             avg_ts = (dt_series.view('int64') // 10**9).astype(int)
         filtered_df['Maturity (hrs)'] = ((now_ts - avg_ts) / 3600).clip(lower=0).round(0).astype(int)
+        filtered_df = filtered_df.sort_values(by='Maturity (hrs)', ascending=False, na_position='last').reset_index(drop=True)
 
         # Target maturity mapping
         maturity_df = get_maturity_hours()
@@ -816,7 +817,7 @@ with tab3:
                         GROUP BY entry_id_grp, bin_no, jute_quality_id
                     ) p ON p.entry_id_grp = i.entry_id_grp
                     WHERE i.issue_date = :d
-                    ORDER BY i.issue_time, i.entry_id_grp
+                    ORDER BY  i.spreader_roll_issue_id desc
                     """
                 ),
                 _conn,
