@@ -3,12 +3,12 @@ from db import engine
 
 def spg_details_date(selected_date, start_date):
 	query = f"""
-select doffdate,substr(spell,1,1) shift,attendance_type,ifnull(ebno,"Contract") as ebno,frameno,q_code,quality,
+select doffdate,substr(spell,1,1) shift,attendance_type,ifnull(ebno,"Contract") as ebno,name,frameno,q_code,quality,
 	sum(netwt) netwt,
 	sum(whrs) whrs,  sum(stdprod) stdprod,
 	sum(noofframe) noofframe,round(sum(netwt)/sum(stdprod)*100,2)  eff from
 	(
-	select prd.*,concat(sm.std_count,' - Lbs ',sm.subgroup_type) quality,   dea.mc_id,
+	select prd.*,concat(wm.worker_name,' ',ifnull(wm.middle_name,' '),' ',ifnull(wm.last_name ,'') ) as name,concat(sm.std_count,' - Lbs ',sm.subgroup_type) quality,   dea.mc_id,
 	case when (prd.spell='C' and ebno is null) then ifnull((da.working_hours),7.5)
 	when (prd.spell='A1' and ebno is null) then ifnull((da.working_hours),5)
 	when (prd.spell='A2' and ebno is null) then ifnull((da.working_hours),3)
@@ -41,9 +41,10 @@ select doffdate,substr(spell,1,1) shift,attendance_type,ifnull(ebno,"Contract") 
 	left join EMPMILL12.spining_daily_transaction sdt on sdt.company_id=prd.company_id and sdt.q_code =prd.q_code
 	and sdt.tran_date=prd.doffdate
 	left join EMPMILL12.spining_master sm on sdt.company_id=sm.company_id and sdt.q_code =sm.q_code
+	left join vowsls.worker_master wm on wm.eb_no = prd.ebno and wm.company_id = 2 and length(wm.eb_no) > 2
 	where  (da.worked_designation_id in (213,50,55,241,252,195,242) or prd.ebno is null)
 	) g
-	group by doffdate,substr(spell,1,1),ebno,frameno,q_code,quality,attendance_type
+	group by doffdate,substr(spell,1,1),ebno,name,frameno,q_code,quality,attendance_type
 	order by frameno ,substr(spell,1,1)
 	"""
 	with engine.connect() as conn:

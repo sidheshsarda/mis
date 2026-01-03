@@ -117,6 +117,8 @@ def spg_from_day_to_day_view():
                 group_rows = []
                 for ebno, group in filtered_df.groupby(['ebno']):
                     row = {'EBNO': ebno}
+                    # Get the name from the first row of the group
+                    row['Name'] = group['name'].iloc[0] if 'name' in group.columns and not group['name'].isnull().all() else ''
                     row['DaysAttended'] = group['doffdate'].nunique()
                     for shift in ['A', 'B', 'C']:
                         effs = group[(group['shift'] == shift) & (group['eff'] > 0) & (~group['eff'].isnull())]['eff']
@@ -167,10 +169,13 @@ def spg_from_day_to_day_view():
                         eff_c_val = round(eff_c.mean(), 2) if not eff_c.empty else ''
                         avg_eff = [v for v in [eff_a_val, eff_b_val, eff_c_val] if isinstance(v, (int, float))]
                         avg_eff_val = round(sum(avg_eff) / len(avg_eff), 2) if avg_eff else ''
+                        # Get name from the group
+                        name_val = group['name'].iloc[0] if 'name' in group.columns and not group['name'].isnull().all() else ''
                         rows.append({
                             'Date': date,
                             'Shift': shift,
                             'EBNO': selected_ebno,
+                            'Name': name_val,
                             'FrameNo': frameno,
                             'Eff': eff,
                             'EffA': eff_a_val,
@@ -181,7 +186,7 @@ def spg_from_day_to_day_view():
                     result_df = pd.DataFrame(rows)
                     # Add summary row for averages
                     if not result_df.empty:
-                        avg_row = {'Date': 'Avg', 'Shift': '', 'EBNO': selected_ebno, 'FrameNo': ''}
+                        avg_row = {'Date': 'Avg', 'Shift': '', 'EBNO': selected_ebno, 'Name': '', 'FrameNo': ''}
                         for col in ['Eff', 'EffA', 'EffB', 'EffC', 'AvgEff']:
                             vals = pd.to_numeric(result_df[col], errors='coerce')
                             vals = vals[~vals.isnull()]

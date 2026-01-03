@@ -3,12 +3,14 @@ from db import engine
 
 def wdg_details_date(selected_date, start_date):
 	query = f"""
-select tran_date,shift,eb_no,mechine_name,quality,vps.attendance_type, sum(prod) prod,sum(atthrs) atthrs,
+select tran_date,shift,vps.eb_no,concat(wm.worker_name,' ',ifnull(wm.middle_name,' '),' ',ifnull(wm.last_name ,'') ) as name,mechine_name,quality,vps.attendance_type, sum(prod) prod,sum(atthrs) atthrs,
 		round(sum(prod)/sum(target_prod/8*atthrs)*100,2) eff,
 		case when shift<>'C' then sum(atthrs)/8 else sum(atthrs)/7.5 end noofwinders  
-		from EMPMILL12.view_proc_spellwindingdata vps where tran_date 
+		from EMPMILL12.view_proc_spellwindingdata vps
+		left join vowsls.worker_master wm on wm.eb_no = vps.eb_no and wm.company_id = 2 and length(wm.eb_no) > 2
+		where tran_date 
 		between '{start_date}' and '{selected_date}'	
-		group by tran_date,shift,eb_no,mechine_name,quality,attendance_type 
+		group by tran_date,shift,vps.eb_no,name,mechine_name,quality,attendance_type 
 	"""
 	with engine.connect() as conn:
 		df = pd.read_sql(query, conn)
