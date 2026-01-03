@@ -113,9 +113,9 @@ def wdg_low_producer_view():
                     row['DaysAttended'] = group['tran_date'].nunique()
                     for shift in ['A', 'B', 'C']:
                         effs = group[(group['shift'] == shift) & (group['eff'] > 0) & (~group['eff'].isnull())]['eff']
-                        row[shift] = round(effs.mean(), 2) if not effs.empty else ''
+                        row[shift] = round(effs.mean(), 2) if not effs.empty else None
                     effs_all = group[(group['eff'] > 0) & (~group['eff'].isnull())]['eff']
-                    row['Avg Eff'] = round(effs_all.mean(), 2) if not effs_all.empty else ''
+                    row['Avg Eff'] = round(effs_all.mean(), 2) if not effs_all.empty else None
                     group_rows.append(row)
                 group_df = pd.DataFrame(group_rows)
                 # Apply DaysAttended filter
@@ -147,7 +147,7 @@ def wdg_low_producer_view():
                         # Eff: average for selected EBNO, date, shift, mechine
                         eff_vals = group['eff']
                         eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
-                        eff = round(eff_vals.mean(), 2) if not eff_vals.empty else ''
+                        eff = round(eff_vals.mean(), 2) if not eff_vals.empty else None
                         # EffA, EffB, EffC: average for ALL spinners (all EBNOs) who worked on that date, mechine, and shift A/B/C (from original df, not filtered by EBNO)
                         eff_a = orig_df[(orig_df['tran_date'] == date) & (orig_df['mechine_name'] == mechine) & (orig_df['shift'] == 'A')]['eff']
                         eff_a = eff_a[(eff_a > 0) & (~eff_a.isnull())]
@@ -155,13 +155,13 @@ def wdg_low_producer_view():
                         eff_b = eff_b[(eff_b > 0) & (~eff_b.isnull())]
                         eff_c = orig_df[(orig_df['tran_date'] == date) & (orig_df['mechine_name'] == mechine) & (orig_df['shift'] == 'C')]['eff']
                         eff_c = eff_c[(eff_c > 0) & (~eff_c.isnull())]
-                        eff_a_val = round(eff_a.mean(), 2) if not eff_a.empty else ''
-                        eff_b_val = round(eff_b.mean(), 2) if not eff_b.empty else ''
-                        eff_c_val = round(eff_c.mean(), 2) if not eff_c.empty else ''
+                        eff_a_val = round(eff_a.mean(), 2) if not eff_a.empty else None
+                        eff_b_val = round(eff_b.mean(), 2) if not eff_b.empty else None
+                        eff_c_val = round(eff_c.mean(), 2) if not eff_c.empty else None
                         avg_eff = [v for v in [eff_a_val, eff_b_val, eff_c_val] if isinstance(v, (int, float))]
-                        avg_eff_val = round(sum(avg_eff) / len(avg_eff), 2) if avg_eff else ''
+                        avg_eff_val = round(sum(avg_eff) / len(avg_eff), 2) if avg_eff else None
                         # Get name from the group
-                        name_val = group['name'].iloc[0] if 'name' in group.columns and not group['name'].isnull().all() else ''
+                        name_val = group['name'].iloc[0] if 'name' in group.columns and not group['name'].isnull().all() else None
                         rows.append({
                             'Date': date,
                             'Shift': shift,
@@ -177,11 +177,11 @@ def wdg_low_producer_view():
                     result_df = pd.DataFrame(rows)
                     # Add summary row for averages
                     if not result_df.empty:
-                        avg_row = {'Date': 'Avg', 'Shift': '', 'EBNO': selected_ebno, 'Name': '', 'Mechine': ''}
+                        avg_row = {'Date': 'Avg', 'Shift': None, 'EBNO': selected_ebno, 'Name': None, 'Mechine': None}
                         for col in ['Eff', 'EffA', 'EffB', 'EffC', 'AvgEff']:
                             vals = pd.to_numeric(result_df[col], errors='coerce')
                             vals = vals[~vals.isnull()]
-                            avg_row[col] = round(vals.mean(), 2) if not vals.empty else ''
+                            avg_row[col] = round(vals.mean(), 2) if not vals.empty else None
                         result_df = pd.concat([result_df, pd.DataFrame([avg_row])], ignore_index=True)
                     st.markdown('**EBNO/Shiftwise Eff Table (Details)**')
                     st.dataframe(result_df, hide_index=True)
@@ -198,7 +198,7 @@ def wdg_low_producer_view():
                     for (date, shift), group in grouped:
                         eff_vals = group['eff']
                         eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
-                        avg_eff = round(eff_vals.mean(), 2) if not eff_vals.empty else ''
+                        avg_eff = round(eff_vals.mean(), 2) if not eff_vals.empty else None
                         mechines = ', '.join(sorted([str(f) for f in group['mechine_name'].unique()]))
                         rows.append({
                             'Date': date,
@@ -209,10 +209,10 @@ def wdg_low_producer_view():
                     result_df = pd.DataFrame(rows)
                     # Add summary row for averages
                     if not result_df.empty:
-                        avg_row = {'Date': 'Avg', 'Shift': '', 'Mechines': ''}
+                        avg_row = {'Date': 'Avg', 'Shift': None, 'Mechines': None}
                         vals = pd.to_numeric(result_df['AvgEff'], errors='coerce')
                         vals = vals[~vals.isnull()]
-                        avg_row['AvgEff'] = round(vals.mean(), 2) if not vals.empty else ''
+                        avg_row['AvgEff'] = round(vals.mean(), 2) if not vals.empty else None
                         result_df = pd.concat([result_df, pd.DataFrame([avg_row])], ignore_index=True)
                     st.markdown('**Daywise Avg Eff and Shift for Spinner**')
                     st.dataframe(result_df, hide_index=True)
