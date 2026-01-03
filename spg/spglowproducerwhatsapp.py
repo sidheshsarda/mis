@@ -1,75 +1,105 @@
 import streamlit as st
 import datetime
-from wdg.query import wdg_details_date, get_name
+from spg.query import spg_details_date
 import pandas as pd
 
-def wdg_low_producer_view():
-    st.title("WDG Low Producer Efficiency Details")
 
-    # Date range input
+def spg_from_day_to_day_view():
+
+    st.title("SPG From Day To Day Efficiency Details")
+    
+    # Date range input for selecting from and to dates
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
     seven_days_ago = today - datetime.timedelta(days=7)
+    default_start = today - datetime.timedelta(days=30)
     col_date1, col_date2 = st.columns(2)
     with col_date1:
-        from_date = st.date_input("From Date", value=seven_days_ago, max_value=yesterday, key="wdg_from_date")
+        from_date = st.date_input("From Date", value=yesterday, max_value=yesterday, key="spg_from_date")
     with col_date2:
-        to_date = st.date_input("To Date", value=yesterday, min_value=from_date, max_value=yesterday, key="wdg_to_date")
+        to_date = st.date_input("To Date", value=yesterday, min_value=from_date, max_value=yesterday, key="spg_to_date")
     if from_date and to_date:
         from_date_str = from_date.strftime("%Y-%m-%d")
         to_date_str = to_date.strftime("%Y-%m-%d")
+        
         # Query the data
-        df, _ = wdg_details_date(to_date_str, from_date_str)
+        df, _ = spg_details_date(to_date_str, from_date_str)
+        
+        # Filter to only show rows where whrs = 8 and attendance_type = 'R'
         if not df.empty:
-            # --- Add selectboxes for Shift, EBNO, Mechine, Quality, Attendance Type ---
+            if 'whrs' in df.columns and 'attendance_type' in df.columns:
+                df = df[(df['whrs'] == 8) & (df['attendance_type'] == 'R')]
+        
+        if not df.empty:
+            # --- Add typeable selectboxes for Shift, EBNO, FrameNo, Q_Code, Quality ---
             shift_options = ['All'] + sorted([str(x) for x in df['shift'].dropna().unique()]) if 'shift' in df.columns else []
+            # EBNO prefix filter
             ebno_prefix_options = ['All', 'L', 'T', 'C']
             col_prefix, col1, col2, col3, col4, col5 = st.columns(6)
             with col_prefix:
-                selected_ebno_prefix = st.selectbox("EBNO Prefix", ebno_prefix_options, index=0, key="wdg_ebno_prefix_select")
-            if 'eb_no' in df.columns:
-                all_ebnos = sorted([str(x) for x in df['eb_no'].dropna().unique()])
+                selected_ebno_prefix = st.selectbox("EBNO Prefix", ebno_prefix_options, index=0, key="spg_ebno_prefix_select")
+            # Filter EBNOs by prefix if selected
+            if 'ebno' in df.columns:
+                all_ebnos = sorted([str(x) for x in df['ebno'].dropna().unique()])
                 if selected_ebno_prefix and selected_ebno_prefix != 'All':
                     ebno_options = ['All'] + [eb for eb in all_ebnos if eb.startswith(selected_ebno_prefix)]
                 else:
                     ebno_options = ['All'] + all_ebnos
             else:
                 ebno_options = []
-            mechine_options = ['All'] + sorted([str(x) for x in df['mechine_name'].dropna().unique()]) if 'mechine_name' in df.columns else []
+            frameno_options = ['All'] + sorted([str(x) for x in df['frameno'].dropna().unique()]) if 'frameno' in df.columns else []
+            qcode_options = ['All'] + sorted([str(x) for x in df['q_code'].dropna().unique()]) if 'q_code' in df.columns else []
             quality_options = ['All'] + sorted([str(x) for x in df['quality'].dropna().unique()]) if 'quality' in df.columns else []
-            att_options = ['All'] + sorted([str(x) for x in df['attendance_type'].dropna().unique()]) if 'attendance_type' in df.columns else []
             with col1:
-                selected_shift = st.selectbox("Shift", shift_options, index=0, key="wdg_shift_select") if shift_options else None
+                selected_shift = st.selectbox("Shift", shift_options, index=0, key="spg_shift_select") if shift_options else None
             with col2:
-                selected_ebno = st.selectbox("EBNO", ebno_options, index=0, key="wdg_ebno_select") if ebno_options else None
+                selected_ebno = st.selectbox("EBNO", ebno_options, index=0, key="spg_ebno_select") if ebno_options else None
             with col3:
-                selected_mechine = st.selectbox("Mechine", mechine_options, index=0, key="wdg_mechine_select") if mechine_options else None
+                selected_frameno = st.selectbox("Frame No", frameno_options, index=0, key="spg_frameno_select") if frameno_options else None
             with col4:
-                selected_quality = st.selectbox("Quality", quality_options, index=0, key="wdg_quality_select") if quality_options else None
+                selected_qcode = st.selectbox("Q Code", qcode_options, index=0, key="spg_qcode_select") if qcode_options else None
             with col5:
-                selected_att = st.selectbox("Attendance Type", att_options, index=0, key="wdg_att_select") if att_options else None
+                selected_quality = st.selectbox("Quality", quality_options, index=0, key="spg_quality_select") if quality_options else None
 
             # Show Spinner Name if EBNO is selected (not 'All')
             if selected_ebno and selected_ebno != 'All':
+                from spg.query import get_name
                 spinner_name = get_name(selected_ebno)
                 st.markdown(f"**Spinner Name:** {spinner_name}")
 
             # Filter dataframe based on selections
             filtered_df = df.copy()
+            # Apply EBNO prefix filter first
             if selected_ebno_prefix and selected_ebno_prefix != 'All':
-                filtered_df = filtered_df[filtered_df['eb_no'].astype(str).str.startswith(selected_ebno_prefix)]
+                filtered_df = filtered_df[filtered_df['ebno'].astype(str).str.startswith(selected_ebno_prefix)]
             if selected_shift and selected_shift != 'All':
                 filtered_df = filtered_df[filtered_df['shift'].astype(str) == selected_shift]
             if selected_ebno and selected_ebno != 'All':
-                filtered_df = filtered_df[filtered_df['eb_no'].astype(str) == selected_ebno]
-            if selected_mechine and selected_mechine != 'All':
-                filtered_df = filtered_df[filtered_df['mechine_name'].astype(str) == selected_mechine]
+                filtered_df = filtered_df[filtered_df['ebno'].astype(str) == selected_ebno]
+            if selected_frameno and selected_frameno != 'All':
+                filtered_df = filtered_df[filtered_df['frameno'].astype(str) == selected_frameno]
+            if selected_qcode and selected_qcode != 'All':
+                filtered_df = filtered_df[filtered_df['q_code'].astype(str) == selected_qcode]
             if selected_quality and selected_quality != 'All':
                 filtered_df = filtered_df[filtered_df['quality'].astype(str) == selected_quality]
-            if selected_att and selected_att != 'All':
-                filtered_df = filtered_df[filtered_df['attendance_type'].astype(str) == selected_att]
-            st.subheader("WDG Data Table (Filtered)")
-            st.dataframe(filtered_df, hide_index=True)
+            # Sort by eff from low to high
+            if 'eff' in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by='eff', ascending=True).reset_index(drop=True)
+            st.subheader("SPG Data Table (Filtered)")
+            # Hide noofframe and attendance_type columns, concatenate q_code and quality
+            display_df = filtered_df.copy()
+            if 'q_code' in display_df.columns and 'quality' in display_df.columns:
+                display_df['Q_Code_Quality'] = display_df['q_code'].astype(str) + ' - ' + display_df['quality'].astype(str)
+                display_df = display_df.drop(columns=['q_code', 'quality'], errors='ignore')
+            display_df = display_df.drop(columns=['noofframe', 'attendance_type', 'whrs'], errors='ignore')
+            # Reorder columns to place Q_Code_Quality after name
+            if 'Q_Code_Quality' in display_df.columns and 'name' in display_df.columns:
+                cols = list(display_df.columns)
+                cols.remove('Q_Code_Quality')
+                name_idx = cols.index('name')
+                cols.insert(name_idx + 1, 'Q_Code_Quality')
+                display_df = display_df[cols]
+            st.dataframe(display_df, hide_index=True)
 
             # --- Show average EFF from filtered_df, ignoring 0/null values ---
             if 'eff' in filtered_df.columns:
@@ -94,23 +124,23 @@ def wdg_low_producer_view():
                     else:
                         st.metric(label="Shed Eff Average (Unfiltered)", value="N/A")
 
-            # --- EBNO/Shiftwise Avg Eff Table ---
-            ebno_table_columns = ['eb_no', 'shift', 'eff', 'tran_date']
+            # --- EBNO/Shiftwise Avg Eff Table (like S4LowProducer) ---
+            ebno_table_columns = ['ebno', 'shift', 'eff', 'doffdate']
             missing_cols = [col for col in ebno_table_columns if col not in filtered_df.columns]
             if not filtered_df.empty and not missing_cols:
                 st.markdown('**EBNO/Shiftwise Avg Eff Table Filters**')
                 colf1, colf2 = st.columns(2)
                 with colf1:
-                    days_filter_type = st.selectbox('DaysAttended: Above/Below', ['All', 'Above', 'Below'], key='wdg_days_filter_type')
+                    days_filter_type = st.selectbox('DaysAttended: Above/Below', ['All', 'Above', 'Below'], key='spg_days_filter_type')
                 with colf2:
-                    days_filter_value = st.number_input('DaysAttended Value', min_value=0, value=0, key='wdg_days_filter_value')
+                    days_filter_value = st.number_input('DaysAttended Value', min_value=0, value=0, key='spg_days_filter_value')
                 st.markdown('**EBNO/Shiftwise Avg Eff Table**')
                 group_rows = []
-                for ebno, group in filtered_df.groupby(['eb_no']):
+                for ebno, group in filtered_df.groupby(['ebno']):
                     row = {'EBNO': ebno}
                     # Get the name from the first row of the group
                     row['Name'] = group['name'].iloc[0] if 'name' in group.columns and not group['name'].isnull().all() else ''
-                    row['DaysAttended'] = group['tran_date'].nunique()
+                    row['DaysAttended'] = group['doffdate'].nunique()
                     for shift in ['A', 'B', 'C']:
                         effs = group[(group['shift'] == shift) & (group['eff'] > 0) & (~group['eff'].isnull())]['eff']
                         row[shift] = round(effs.mean(), 2) if not effs.empty else None
@@ -135,25 +165,25 @@ def wdg_low_producer_view():
             elif not filtered_df.empty and missing_cols:
                 st.warning(f"Cannot display EBNO/Shiftwise Avg Eff Table. Missing columns: {', '.join(missing_cols)}")
 
-            # --- New Table: Date, Shift, EBNO, Mechine, Eff, EffA, EffB, EffC, AvgEff (filtered by selected EBNO) ---
-            if selected_ebno and selected_ebno != 'All' and 'eb_no' in filtered_df.columns:
-                ebno_df = filtered_df[filtered_df['eb_no'].astype(str) == selected_ebno]
+            # --- New Table: Date, Shift, EBNO, FrameNo, Eff, EffA, EffB, EffC, AvgEff (filtered by selected EBNO) ---
+            if selected_ebno and selected_ebno != 'All' and 'ebno' in filtered_df.columns:
+                ebno_df = filtered_df[filtered_df['ebno'].astype(str) == selected_ebno]
                 if not ebno_df.empty:
                     # Use the original (unfiltered) df for EffA, EffB, EffC
                     orig_df = df.copy()
-                    grouped = ebno_df.groupby(['tran_date', 'shift', 'mechine_name'], as_index=False)
+                    grouped = ebno_df.groupby(['doffdate', 'shift', 'frameno'], as_index=False)
                     rows = []
-                    for (date, shift, mechine), group in grouped:
-                        # Eff: average for selected EBNO, date, shift, mechine
+                    for (date, shift, frameno), group in grouped:
+                        # Eff: average for selected EBNO, date, shift, frameno
                         eff_vals = group['eff']
                         eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
                         eff = round(eff_vals.mean(), 2) if not eff_vals.empty else None
-                        # EffA, EffB, EffC: average for ALL spinners (all EBNOs) who worked on that date, mechine, and shift A/B/C (from original df, not filtered by EBNO)
-                        eff_a = orig_df[(orig_df['tran_date'] == date) & (orig_df['mechine_name'] == mechine) & (orig_df['shift'] == 'A')]['eff']
+                        # EffA, EffB, EffC: average for ALL spinners (all EBNOs) who worked on that date, frameno, and shift A/B/C (from original df, not filtered by EBNO)
+                        eff_a = orig_df[(orig_df['doffdate'] == date) & (orig_df['frameno'] == frameno) & (orig_df['shift'] == 'A')]['eff']
                         eff_a = eff_a[(eff_a > 0) & (~eff_a.isnull())]
-                        eff_b = orig_df[(orig_df['tran_date'] == date) & (orig_df['mechine_name'] == mechine) & (orig_df['shift'] == 'B')]['eff']
+                        eff_b = orig_df[(orig_df['doffdate'] == date) & (orig_df['frameno'] == frameno) & (orig_df['shift'] == 'B')]['eff']
                         eff_b = eff_b[(eff_b > 0) & (~eff_b.isnull())]
-                        eff_c = orig_df[(orig_df['tran_date'] == date) & (orig_df['mechine_name'] == mechine) & (orig_df['shift'] == 'C')]['eff']
+                        eff_c = orig_df[(orig_df['doffdate'] == date) & (orig_df['frameno'] == frameno) & (orig_df['shift'] == 'C')]['eff']
                         eff_c = eff_c[(eff_c > 0) & (~eff_c.isnull())]
                         eff_a_val = round(eff_a.mean(), 2) if not eff_a.empty else None
                         eff_b_val = round(eff_b.mean(), 2) if not eff_b.empty else None
@@ -167,7 +197,7 @@ def wdg_low_producer_view():
                             'Shift': shift,
                             'EBNO': selected_ebno,
                             'Name': name_val,
-                            'Mechine': mechine,
+                            'FrameNo': frameno,
                             'Eff': eff,
                             'EffA': eff_a_val,
                             'EffB': eff_b_val,
@@ -177,7 +207,7 @@ def wdg_low_producer_view():
                     result_df = pd.DataFrame(rows)
                     # Add summary row for averages
                     if not result_df.empty:
-                        avg_row = {'Date': 'Avg', 'Shift': None, 'EBNO': selected_ebno, 'Name': None, 'Mechine': None}
+                        avg_row = {'Date': 'Avg', 'Shift': None, 'EBNO': selected_ebno, 'Name': None, 'FrameNo': None}
                         for col in ['Eff', 'EffA', 'EffB', 'EffC', 'AvgEff']:
                             vals = pd.to_numeric(result_df[col], errors='coerce')
                             vals = vals[~vals.isnull()]
@@ -187,29 +217,28 @@ def wdg_low_producer_view():
                     st.dataframe(result_df, hide_index=True)
                 else:
                     st.info('No data for selected EBNO.')
-
             # --- New Table: Daywise Avg Eff and Shift for selected EBNO ---
-            if selected_ebno and selected_ebno != 'All' and 'eb_no' in filtered_df.columns:
-                ebno_df = filtered_df[filtered_df['eb_no'].astype(str) == selected_ebno]
+            if selected_ebno and selected_ebno != 'All' and 'ebno' in filtered_df.columns:
+                ebno_df = filtered_df[filtered_df['ebno'].astype(str) == selected_ebno]
                 if not ebno_df.empty:
-                    # Group by date and shift, aggregate average eff across all mechine for that EBNO
-                    grouped = ebno_df.groupby(['tran_date', 'shift'], as_index=False)
+                    # Group by date and shift, aggregate average eff across all frames for that EBNO
+                    grouped = ebno_df.groupby(['doffdate', 'shift'], as_index=False)
                     rows = []
                     for (date, shift), group in grouped:
                         eff_vals = group['eff']
                         eff_vals = eff_vals[(eff_vals > 0) & (~eff_vals.isnull())]
                         avg_eff = round(eff_vals.mean(), 2) if not eff_vals.empty else None
-                        mechines = ', '.join(sorted([str(f) for f in group['mechine_name'].unique()]))
+                        frames = ', '.join(sorted([str(f) for f in group['frameno'].unique()]))
                         rows.append({
                             'Date': date,
                             'Shift': shift,
-                            'Mechines': mechines,
+                            'FrameNos': frames,
                             'AvgEff': avg_eff
                         })
                     result_df = pd.DataFrame(rows)
                     # Add summary row for averages
                     if not result_df.empty:
-                        avg_row = {'Date': 'Avg', 'Shift': None, 'Mechines': None}
+                        avg_row = {'Date': 'Avg', 'Shift': None, 'FrameNos': None}
                         vals = pd.to_numeric(result_df['AvgEff'], errors='coerce')
                         vals = vals[~vals.isnull()]
                         avg_row['AvgEff'] = round(vals.mean(), 2) if not vals.empty else None
@@ -218,3 +247,9 @@ def wdg_low_producer_view():
                     st.dataframe(result_df, hide_index=True)
         else:
             st.info("No data available for the selected period.")
+
+
+
+
+
+

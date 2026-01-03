@@ -2,4 +2,9 @@
 .venv
 careful-analyst-441615-j6-ac33950f3271.json
 __pycache__/
+*.pyc
+*.pyo
+.cache/
+.pytest_cache/
 .gitignore
+*__pycache__*/
