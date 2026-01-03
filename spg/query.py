@@ -32,7 +32,7 @@ select doffdate,substr(spell,1,1) shift,attendance_type,ifnull(ebno,"Contract") 
 	from (
 	select dft.company_id,doffdate,dft.spell,ebno,frameno,q_code,mechine_id,round(sum(netwt),2) netwt from dofftable dft
 	left join mechine_master mm on mm.company_id =dft.company_id and mm.mach_shr_code =dft.frameno
-	where doffdate between '{start_date}'and '{selected_date}' and dft.company_id=2 and mm.type_of_mechine=36
+	where doffdate between '{start_date}'and '{selected_date}' and dft.company_id=2 and mm.type_of_mechine=36 and is_active=1
 	group by dft.company_id,doffdate,dft.spell,ebno,frameno,q_code,mechine_id  
 	) prd
 	left join daily_ebmc_attendance dea on dea.company_id =prd.company_id and prd.spell=dea.spell
