@@ -4,6 +4,7 @@ import pandas as pd
 import datetime 
 import numpy as np
 import gspread
+import os
 from google.oauth2.service_account import Credentials
 
 def daily_summary():
@@ -356,11 +357,12 @@ def daily_summary():
                 workers_detail_data = {
                     '': ['WORKING HOUR', 'NO OF HANDS', '(WYKHR FOR C-WRK HR67.5)', 'SPINNING', 'WEAVING'],
                     'A': [2862, 357.75, '', 56.36, 96.71],
-                    'B': [1715, 214.38, 'DEAD/MT', 32.37, 65.05],
-                    'C': [15, 2.00, '', 'NOT RUN', 'NOT RUN'],
+                    'B': [1715, 214.38, '', 32.37, 65.05],
+                    'C': [15, 2.00, '', '', ''],  # Changed 'NOT RUN' to empty strings for consistency
                     'TOTAL': [4592, 574.13, '', 44.26, 82.08],
                     'TODATE': [83342, 10417.75, '', 44.02, 55.87]
                 }
+                st.info("Note: Empty cells in shift C indicate 'NOT RUN'. Cell C3 shows 'DEAD/MT' in the reference image.")
                 workers_detail_df = pd.DataFrame(workers_detail_data)
                 st.dataframe(workers_detail_df, hide_index=True, use_container_width=True)
             else:
@@ -414,11 +416,12 @@ def daily_summary():
         
         finishing_data = {
             '': ['PRESS PRODUCTION (BALE)', 'STOCK (BALE)', 'LOOSE STOCK (MT)'],
-            'HESSIAN': [16, 99, 'HPS 11.428'],
-            'SACKING': [0, 4, 'SACKING 13.228'],
-            'O/A': [16, 103, 'OTHERS 7.827'],
+            'HESSIAN': [16, 99, 11.428],  # Changed to numeric
+            'SACKING': [0, 4, 13.228],    # Changed to numeric
+            'O/A': [16, 103, 7.827],      # Changed to numeric
             'TO-DATE': ['', 550, '']
         }
+        st.info("Note: Loose stock types (HPS, SACKING, OTHERS) should be stored in a separate column in the actual database.")
         finishing_df = pd.DataFrame(finishing_data)
         st.dataframe(finishing_df, hide_index=True, use_container_width=True)
         
@@ -439,12 +442,13 @@ def daily_summary():
         
         sqc_data = {
             'QUALITY': ['HESSIAN', 'SACKING', 'OVERALL'],
-            'OVEREVED': [2.38, 0, 2.38],
+            'OBSERVED': [2.38, 0, 2.38],  # Changed from OVEREVED to OBSERVED
             'CORRECTED': [0.17, 0, 0.17],
             'TO-DATE HEAVY & LIGHT': [1.58, 0, -0.45],
-            'OVEREVED_TD': ['', '', ''],
+            'OBSERVED_TD': ['', '', ''],  # Changed from OVEREVED_TD
             'CORRECTED_TD': [-1.35, -2.77, -1.68]
         }
+        st.info("Note: 'OBSERVED' and 'CORRECTED' refer to quality measurements (the reference image may have abbreviated these).")
         sqc_df = pd.DataFrame(sqc_data)
         st.dataframe(sqc_df, hide_index=True, use_container_width=True)
         
@@ -462,13 +466,14 @@ def daily_summary():
         
         # Jute Stock section
         jute_stock_data = {
-            'STOCK(MT) AS ON DATED': ['24-01-2026'],
+            'STOCK(MT) AS ON DATE': ['24-01-2026'],
             'TODAY ISSUED(MT)': [8.176],
-            'ISSUE-5PG(MT)': ['-4.80'],
-            'BALE-UNCUT RE SELECTION': ['0-DAYS STOCK'],
-            'TOTAL RE SELECTION': [0],
-            'TOTAL': [56]
+            'ISSUE-5PG(MT)': [-4.80],
+            'TOTAL RE SELECTION': [0],  # Moved this before TOTAL
+            'TOTAL': [56],
+            'O-DAYS STOCK': ['']  # Separate column for O-DAYS STOCK
         }
+        st.info("Note: 'BALE-UNCUT RE SELECTION' column shown in image appears to contain '0-DAYS STOCK' label - separated into distinct column here.")
         jute_stock_df = pd.DataFrame(jute_stock_data)
         st.dataframe(jute_stock_df, hide_index=True, use_container_width=True)
         
@@ -574,10 +579,10 @@ def daily_summary():
 
     # --- Google Sheets Section (Heavy Light Yarn - existing implementation) ---
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials_path = "C:\\code\\mis\\careful-analyst-441615-j6-ac33950f3271.json"
+    # Use environment variable or fallback to default path
+    credentials_path = os.getenv('GOOGLE_SHEETS_CREDENTIALS', "C:\\code\\mis\\careful-analyst-441615-j6-ac33950f3271.json")
     
     # Check if credentials file exists
-    import os
     if not os.path.exists(credentials_path):
         st.warning("⚠️ Google Sheets credentials not found. Heavy Light Yarn section will not be available.")
         st.info("To enable this section, add the credentials file at: " + credentials_path)
