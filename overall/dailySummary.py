@@ -7,12 +7,15 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 def daily_summary():
-    st.title("Executive Summary")
+    st.title("DAILY PRODUCTION REPORT")
     yesterday = datetime.date.today() - datetime.timedelta(days=1)
-    no_of_frames = 48 # Assuming 3 frames as per your original code
+    no_of_frames = 48 # Assuming 48 frames for spinning
     day_shift = 3
     mtd_shift = 6
     selected_date = st.date_input("Select Date", value=yesterday, key="daily_summary_date")
+    
+    # Display selected date in header format
+    st.markdown(f"### DATED: {selected_date.strftime('%d-%m-%Y')}")
 
     start_date = selected_date.replace(day=1) if selected_date else None
     num_days = (selected_date - start_date).days + 1 if start_date else 0
@@ -82,7 +85,7 @@ def daily_summary():
                 column_config[col] = st.column_config.NumberColumn(format="%.1f", width="60px")
 
         # Display final table
-        st.markdown("Spg Production Summary")
+        st.markdown("### SPINNING PRODUCTION SHIFT WISE(DOFF-10)")
         st.dataframe(
             df,
             use_container_width=True,
@@ -141,7 +144,7 @@ def daily_summary():
             st.error(f"Error fetching spinning fine/coarse data: {str(e)}")
         
         # Display Quality Winding Details
-        st.markdown("Quality Winding Details")
+        st.markdown("### WINDER AVERAGE PRODUCTION QUALITY WISE")
         try:
             if start_date:
                 winding_df, winding_json = get_quality_winding_details(selected_date, start_date)
@@ -187,7 +190,14 @@ def daily_summary():
             st.error(f"Error fetching quality winding details: {str(e)}")
         
         # Display Weaving Details
-        st.markdown("Weaving Details")
+        st.markdown("### WEAVING PRODUCTION /DAY")
+        st.info("📌 Note: Currently shows Hessian, Sacking, PackSheet. Image shows HESSIAN, S4, SKG, RAPIER(11.25), PACK SHEET, O/A")
+        st.markdown("""
+        **May need adjustment if different quality breakdown is required:**
+        - Current implementation groups by QualityType (1=Hessian, 2=Sacking, other=PackSheet)
+        - Image shows: HESSIAN, S4, SKG, RAPIER(11.25), PACK SHEET, O/A
+        - If S4 and SKG are separate qualities, need to modify weaving_details query
+        """)
         try:
             weaving_df, weaving_json = weaving_details(selected_date)
             if not weaving_df.empty:
@@ -245,7 +255,7 @@ def daily_summary():
             st.error(f"Error fetching weaving details: {str(e)}")
         
         # Display Weaving Shiftwise Details
-        st.markdown("Weaving Shiftwise Details")
+        st.markdown("### WEAVING PRODUCTION SHIFT WISE")
         try:
             weaving_shiftwise_df, weaving_shiftwise_json = get_weaving_shiftwise(selected_date)
             mtd_total_df, mtd_total_json = get_weaving_total_mtd(selected_date, start_date) if start_date else (pd.DataFrame(), None)
@@ -327,8 +337,212 @@ def daily_summary():
                 st.info("No hands details available for the selected date.")
         except Exception as e:
             st.error(f"Error fetching hands details: {str(e)}")
+        
+        # === TWISTING PRODUCTION (KG) ===
+        st.markdown("### TWISTING PRODUCTION (KG)")
+        st.info("📌 **DATA REQUIREMENT**: Need twisting production data from database")
+        st.markdown("""
+        **Required Database Schema:**
+        - Table: `twisting_daily_transaction` or similar
+        - Columns needed: 
+          - `tran_date` (date)
+          - `quality` (varchar) - quality type (e.g., "10 LBS 3PLY(LOCAL)", "10 LBS 3PLY", "28 LBS 3PLY")
+          - `prod_a` (decimal) - production in shift A
+          - `prod_b` (decimal) - production in shift B
+          - `prod_c` (decimal) - production in shift C
+          - `remarks` (varchar) - any remarks (MILL, SALE, S)
+          - `company_id` (int)
+        """)
+        
+        # Placeholder for twisting production data
+        twisting_data = {
+            'QUALITY/SHIFT': ['10 LBS 3PLY(LOCAL)', '10 LBS 3PLY', '28 LBS 3PLY', 'TOTAL PRODUCTION'],
+            'A': [0, 0, 2000, 2000],
+            'B': [0, 0, 2100, 2100],
+            'C': [0, 0, 0, 0],
+            'TOTAL': [0, 0, 4100, 4100],
+            'REMARKS': ['MILL', 'SALE', 'S', ''],
+            'TO-DATE': [2542, 5637, 11500, 19679]
+        }
+        twisting_df = pd.DataFrame(twisting_data)
+        st.dataframe(twisting_df, hide_index=True, use_container_width=True)
+        
+        # === FINISHING SECTION ===
+        st.markdown("### FINISHING")
+        st.info("📌 **DATA REQUIREMENT**: Need finishing production data (press, stock, loose stock)")
+        st.markdown("""
+        **Required Database Schema:**
+        - Table: `finishing_production` or similar
+        - Columns needed:
+          - `tran_date` (date)
+          - `quality_type` (varchar) - HESSIAN, SACKING
+          - `press_production_bale` (decimal)
+          - `stock_bale` (decimal)
+          - `loose_stock_mt` (decimal)
+          - `company_id` (int)
+        """)
+        
+        finishing_data = {
+            '': ['PRESS PRODUCTION (BALE)', 'STOCK (BALE)', 'LOOSE STOCK (MT)'],
+            'HESSIAN': [16, 99, 'HPS 11.428'],
+            'SACKING': [0, 4, 'SACKING 13.228'],
+            'O/A': [16, 103, 'OTHERS 7.827'],
+            'TO-DATE': ['', 550, '']
+        }
+        finishing_df = pd.DataFrame(finishing_data)
+        st.dataframe(finishing_df, hide_index=True, use_container_width=True)
+        
+        # === HEAVY LIGHT- SQC ===
+        st.markdown("### HEAVY LIGHT- SQC")
+        st.info("📌 **DATA REQUIREMENT**: Need SQC quality data (overseed, corrected counts)")
+        st.markdown("""
+        **Required Database Schema:**
+        - Table: `sqc_quality_daily` or similar
+        - Columns needed:
+          - `tran_date` (date)
+          - `quality` (varchar) - HESSIAN, SACKING, OVERALL
+          - `overseed` (decimal)
+          - `corrected` (decimal)
+          - `company_id` (int)
+        OR could be integrated with existing yarn heavy light report from Google Sheets
+        """)
+        
+        sqc_data = {
+            'QUALITY': ['HESSIAN', 'SACKING', 'OVERALL'],
+            'OVEREVED': [2.38, 0, 2.38],
+            'CORRECTED': [0.17, 0, 0.17],
+            'TO-DATE HEAVY & LIGHT': [1.58, 0, -0.45],
+            'OVEREVED_TD': ['', '', ''],
+            'CORRECTED_TD': [-1.35, -2.77, -1.68]
+        }
+        sqc_df = pd.DataFrame(sqc_data)
+        st.dataframe(sqc_df, hide_index=True, use_container_width=True)
+        
+        # === JUTE SECTION ===
+        st.markdown("### JUTE")
+        st.info("📌 **DATA REQUIREMENT**: Need jute stock and arrival data")
+        st.markdown("""
+        **Required Database Schema:**
+        - Table: `jute_stock_daily` for stock tracking
+          - Columns: `tran_date`, `stock_mt`, `today_issued_mt`, `issue_5pg_mt`, `bale_uncut_re_selection`, `total_re_selection`, `total`, `o_days_stock`
+        - Table: `jute_arrival_daily` for arrivals
+          - Columns: `tran_date`, `bale_cut`, `bale_cut_re_selection`, `bale_uncut`
+        - Or could use existing tables from batching module (see SpreaderProductionEntry.py for jute_quality references)
+        """)
+        
+        # Jute Stock section
+        jute_stock_data = {
+            'STOCK(MT) AS ON DATED': ['24-01-2026'],
+            'TODAY ISSUED(MT)': [8.176],
+            'ISSUE-5PG(MT)': ['-4.80'],
+            'BALE-UNCUT RE SELECTION': ['0-DAYS STOCK'],
+            'TOTAL RE SELECTION': [0],
+            'TOTAL': [56]
+        }
+        jute_stock_df = pd.DataFrame(jute_stock_data)
+        st.dataframe(jute_stock_df, hide_index=True, use_container_width=True)
+        
+        # Jute Arrival section
+        st.markdown("#### JUTE ARRIVAL(MT)")
+        jute_arrival_data = {
+            'BALE-CUT': [17],
+            'BALE-CUT RE SELECTION': [0],
+            'BALE-UNCUT': [39],
+            'BALE-UNCUT RE SELECTION': [0],
+            'TOTAL RE SELECTION': [0],
+            'TOTAL': [56]
+        }
+        jute_arrival_df = pd.DataFrame(jute_arrival_data)
+        st.dataframe(jute_arrival_df, hide_index=True, use_container_width=True)
+        
+        # === P W PRODUCTION ===
+        st.markdown("### P W PRODUCTION")
+        st.info("📌 **DATA REQUIREMENT**: Need PW production data by quality and shift")
+        st.markdown("""
+        **Required Database Schema:**
+        - Table: `pw_production_daily` or similar
+        - Columns needed:
+          - `tran_date` (date)
+          - `quality` (varchar) - quality codes like "9 LBS 1 PLY SLY", "13 LB 1 PLY(LOCAL)", "16 LB 1 PLY(LOCAL)"
+          - `prod_a` (decimal)
+          - `prod_b` (decimal)
+          - `prod_c` (decimal)
+          - `remarks` (varchar)
+          - `company_id` (int)
+        """)
+        
+        pw_data = {
+            'QUALITY/SHIFT': ['9 LBS 1 PLY SLY', '13 LB 1 PLY(LOCAL)', '16 LB 1 PLY(LOCAL)', 'TOTAL PRODUCTION'],
+            'A': [500, 0, 0, 500],
+            'B': [470, 0, 0, 470],
+            'C': [0, 0, 0, 0],
+            'O/A': [970, 0, 0, 970],
+            'REMARKS': ['SALE', 'S4', 'S4', ''],
+            'TO-DATE': [5113, 4423, 2070, 11606]
+        }
+        pw_df = pd.DataFrame(pw_data)
+        st.dataframe(pw_df, hide_index=True, use_container_width=True)
+        
+        # === YARN HEAVY LIGHT REPORT (Enhanced) ===
+        st.markdown("### YARN HEAVY LIGHT REPORT")
+        st.info("📌 This section uses data from Google Sheets (existing implementation below)")
+        st.markdown("""
+        **Additional columns needed for full report:**
+        - REMARKS (HEAVY/LIGHT indicators)
+        - RANGE (±0.2, ±0.2, etc.)
+        - Should include qualities: HESSIAN WEF-8.8Lb, HESSIAN WARP-9Lb, HESSIAN WEFT-9.5Lb, GOLD BALE YARN-10Lb, SACKING WEF(SALE)-26Lb
+        """)
+        
+        # === EXTRA MACHINE RUN BASIS and STD PRODUCTION ===
+        st.markdown("### EXTRA MACHINE RUN BASIS and STD PRODUCTION")
+        st.info("📌 **DATA REQUIREMENT**: Need machine utilization and target production data")
+        st.markdown("""
+        **Required Database Schema:**
+        - Table: `machine_utilization_daily` or compute from existing tables
+        - Columns/Calculations needed:
+          - `type_of_machine` (SPINNING, WEAVING-HESSIAN, WEAVING-SACKING)
+          - `avg_target_machine` - Average production target per machine
+          - `avg_act_machine` - Average actual production per machine
+          - `total_production` - Total production for the day
+          - `should_be_run_machine` - Calculated: total_production / avg_act_machine
+          - `act_run_no_machine` - Actual number of machines run
+          - `excess_no_machine` - Excess/deficit machines
+        
+        **Data Sources:**
+        - SPINNING: Can be derived from spining_daily_transaction (already have prod and mc_a/b/c)
+        - WEAVING-HESSIAN: From weaving_daily_transaction (filtered by quality type = 1)
+        - WEAVING-SACKING: From weaving_daily_transaction (filtered by quality type = 2)
+        """)
+        
+        # Extra Machine Run Basis - Target Production section
+        st.markdown("#### EXTRA MACHINE RUN BASIS & TARGET PRODUCTION")
+        extra_machine_target_data = {
+            'TYPE OF MACHINE': ['SPINNING', 'WEAVING-HESSIAN', 'WEAVING-SACKING'],
+            'AVG TARGET MACHINE': [404, 31.6, 116.5],
+            'AVG ACT/MACHINE': [270, 25.18, 98.75],
+            'TOTAL PRODUCTION': [12.971, 6.497, 0.395],
+            'SHOULD BE RUN NO MACHINE': [32.11, 205.60, 3.39],
+            'ACT RUN NO OF MACHINE': [48, 258, 4],
+            'EXCESS NO OF MACHINE': [15.89, 52.40, 0.61]
+        }
+        extra_machine_target_df = pd.DataFrame(extra_machine_target_data)
+        st.dataframe(extra_machine_target_df, hide_index=True, use_container_width=True)
+        
+        # Extra Machine Run Basis - Production section (duplicate with different date)
+        st.markdown(f"#### EXTRA MACHINE RUN BASIS & TARGET PRODUCTION (24-01-2026)")
+        extra_machine_prod_data = {
+            'TYPE OF MACHINE': ['SPINNING', 'WEAVING-HESSIAN', 'WEAVING-SACKING'],
+            'AVG TARGET MACHINE': [380, 29.4, 85],
+            'AVG ACT/MACHINE': [270, 25.18, 98.75],
+            'TOTAL PRODUCTION': [12.971, 6.497, 0.395],
+            'SHOULD BE RUN NO MACHINE': [34.13, 220.99, 4.65],
+            'ACT RUN NO OF MACHINE': [48, 258, 4],
+            'EXCESS NO OF MACHINE': [13.87, 37.01, -0.65]
+        }
+        extra_machine_prod_df = pd.DataFrame(extra_machine_prod_data)
+        st.dataframe(extra_machine_prod_df, hide_index=True, use_container_width=True)
 
-    # --- Google Sheets Section ---
+    # --- Google Sheets Section (Heavy Light Yarn - existing implementation) ---
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     credentials = Credentials.from_service_account_file(
         "C:\\code\\mis\\careful-analyst-441615-j6-ac33950f3271.json", scopes=scope
@@ -407,7 +621,7 @@ def daily_summary():
                             # Insert Corr Count and Hvy/Light % after Observed Count (Lbs), exclude Std MR%
                             col_order = ["Quality", "Std Count", "Observed Count (Lbs)", "Corr Count", "Hvy/Light %", "Avg MR"]
                             merged = merged[[col for col in col_order if col in merged.columns]]
-                        st.markdown("Heavy Light Yarn")
+                        st.markdown("### YARN HEAVY LIGHT REPORT (From Google Sheets)")
                         st.dataframe(merged, hide_index=True)
                     else:
                         st.info("No data for selected date.")
