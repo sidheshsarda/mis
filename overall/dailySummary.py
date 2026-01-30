@@ -96,7 +96,8 @@ def daily_summary():
         )
         
         # Display Spinning Fine/Coarse Data
-        st.markdown("Spinning Fine/Coarse Summary")
+        st.markdown("### SPINNING PRODUCTION SUMMARY (Fine/Coarse)")
+        st.info("📌 Shows: Actual Count, Kg/Frame, Target Kg/Frame, Prod/Winder. Additional rows shown in image: KG/FRAME/DAY, AVG COUNT(LBS), TARGET PROD/FRAME/(AVG COUNT)")
         try:
             spg_df, spg_json = get_spg_fine_coarse(selected_date)
             
@@ -294,7 +295,8 @@ def daily_summary():
             st.error(f"Error fetching weaving shiftwise details: {str(e)}")
         
         # Display Hands Details (Daily + MTD)
-        st.markdown("Hands Details (Daily + MTD)")
+        st.markdown("### WORKERS HANDS DETAILS (EXCLUDE-OTHER STAFF, MANAGER WATCH & WARD)")
+        st.info("📌 Current implementation shows basic hands calculation. Image shows detailed breakdown with WORKING HOUR, NO OF HANDS, (WYKHR FOR C-WRK HR67.5), SPINNING, WEAVING rows")
         try:
             hands_df, hands_json = get_hands_details(selected_date)
             hands_mtd_df, hands_mtd_json = get_hands_mtd_details(selected_date, start_date) if start_date else (pd.DataFrame(), None)
@@ -333,6 +335,34 @@ def daily_summary():
                     column_config=hands_column_config,
                     row_height=28
                 )
+                
+                # Add detailed breakdown for workers hands
+                st.markdown("#### Detailed Workers Breakdown")
+                st.info("📌 **DATA REQUIREMENT**: Detailed breakdown by department (SPINNING, WEAVING)")
+                st.markdown("""
+                **Enhanced breakdown needed:**
+                - WORKING HOUR per shift
+                - NO OF HANDS (already calculated above)
+                - (WYKHR FOR C-WRK HR67.5) - Working hours calculation for shift C
+                - Separate rows for SPINNING and WEAVING departments
+                
+                **Database Schema:**
+                - Current query uses `daily_attendance` table with `working_hours` and `idle_hours`
+                - Need to add department filter or join with department/section table to separate SPINNING vs WEAVING
+                - Possible approach: Filter by `catagory_id` or add department/section_id to distinguish between departments
+                """)
+                
+                # Placeholder for detailed breakdown
+                workers_detail_data = {
+                    '': ['WORKING HOUR', 'NO OF HANDS', '(WYKHR FOR C-WRK HR67.5)', 'SPINNING', 'WEAVING'],
+                    'A': [2862, 357.75, '', 56.36, 96.71],
+                    'B': [1715, 214.38, 'DEAD/MT', 32.37, 65.05],
+                    'C': [15, 2.00, '', 'NOT RUN', 'NOT RUN'],
+                    'TOTAL': [4592, 574.13, '', 44.26, 82.08],
+                    'TODATE': [83342, 10417.75, '', 44.02, 55.87]
+                }
+                workers_detail_df = pd.DataFrame(workers_detail_data)
+                st.dataframe(workers_detail_df, hide_index=True, use_container_width=True)
             else:
                 st.info("No hands details available for the selected date.")
         except Exception as e:
